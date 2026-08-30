@@ -1177,13 +1177,16 @@ ${note}`)) return;
         snap.forEach((d) => subs.push(d.data().subscription));
       }
       if (!subs.length) return;
-      await fetch("/.netlify/functions/push", {
+      const res = await fetch("/.netlify/functions/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscriptions: subs, title, body })
       });
+      const out = await res.json().catch(function(){ return null; });
+      console.log("[push] נמענים:", ids.length, "מנויים:", subs.length, "תוצאה:", out);
+      if (!res.ok) console.error("[push] הפונקציה החזירה שגיאה:", res.status, out);
     } catch (e) {
-      console.warn("push failed:", e);
+      console.error("[push] כשל בשליחה:", e);
     }
   }
   function normalizePhone(phone) {
@@ -1334,6 +1337,7 @@ ${lines.join("\n")}
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const auth = firebase.auth();
+  auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function(){});
   function getSecondaryAuth() {
     const existing = firebase.apps.find((a) => a.name === "Secondary");
     const app = existing || firebase.initializeApp(firebaseConfig, "Secondary");
@@ -1458,6 +1462,7 @@ ${lines.join("\n")}
     const [notifications, setNotifications] = useState([]);
     const [audit, setAudit] = useState([]);
     const [toasts, setToasts] = useState([]);
+    const [alertPopup, setAlertPopup] = useState(null);
     const [bellOpen, setBellOpen] = useState(false);
     const [pwdOpen, setPwdOpen] = useState(false);
     const [newPwd, setNewPwd] = useState("");
@@ -1559,6 +1564,7 @@ ${lines.join("\n")}
       setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600);
     };
     const fireBrowserNotification = (title, body) => {
+      setAlertPopup({ title: title, body: body });
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
           new Notification(title, { body, lang: "he", dir: "rtl" });
@@ -2404,7 +2410,7 @@ ${q}`
         onUpdateTeacher: updateTeacher,
         onDeleteTeacher: deleteTeacher
       }
-    )))), /* @__PURE__ */ React.createElement("div", { className: "toasts" }, toasts.map((t) => /* @__PURE__ */ React.createElement("div", { key: t.id, className: "toast" }, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " ", t.msg))));
+    )))), alertPopup && /* @__PURE__ */ React.createElement("div", { onClick: () => setAlertPopup(null), style: { position: "fixed", top: 0, right: 0, bottom: 0, left: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" } }, /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: "#fff", borderRadius: "16px", maxWidth: "420px", width: "100%", padding: "24px", boxShadow: "0 18px 50px rgba(0,0,0,.35)", textAlign: "center", direction: "rtl" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "40px", lineHeight: 1, marginBottom: "10px" } }, "\u{1F514}"), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, fontSize: "19px", marginBottom: "10px", color: "#2F5233" } }, alertPopup.title), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "15px", lineHeight: 1.65, color: "#333", marginBottom: "20px", whiteSpace: "pre-wrap" } }, alertPopup.body), /* @__PURE__ */ React.createElement("button", { onClick: () => setAlertPopup(null), style: { background: "#2F5233", color: "#fff", border: "none", borderRadius: "10px", padding: "12px 30px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" } }, "\u05d4\u05d1\u05e0\u05ea\u05d9"))), /* @__PURE__ */ React.createElement("div", { className: "toasts" }, toasts.map((t) => /* @__PURE__ */ React.createElement("div", { key: t.id, className: "toast" }, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " ", t.msg))));
   }
   const root = ReactDOM.createRoot(document.getElementById("root"));
   root.render(/* @__PURE__ */ React.createElement(App, null));
