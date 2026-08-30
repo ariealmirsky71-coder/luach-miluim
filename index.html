@@ -905,40 +905,50 @@ ${note}`)) return;
     const [tab, setTab] = useState("inbox");
     const [askId, setAskId] = useState(null);
     const [askText, setAskText] = useState("");
+    const [openDays, setOpenDays] = useState({});
+    const [picked, setPicked] = useState({});
+    const [askDay, setAskDay] = useState(null);
     const mySlots = [];
     requests.forEach((r) => (r.slots || []).forEach((s) => {
       if (s.subId === me.id) mySlots.push({ ...s, req: r });
     }));
     const inbox = mySlots.filter((s) => s.assignStatus === "sent");
     const confirmed = mySlots.filter((s) => s.assignStatus === "accepted").sort((a, b) => a.date + a.period > b.date + b.period ? 1 : -1);
-    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("div", { className: "subtabs", style: { marginInlineStart: 0 } }, /* @__PURE__ */ React.createElement("button", { className: tab === "inbox" ? "on" : "", onClick: () => setTab("inbox") }, "בקשות שהתקבלו ", inbox.length > 0 && /* @__PURE__ */ React.createElement("span", { className: "badge" }, inbox.length)), /* @__PURE__ */ React.createElement("button", { className: tab === "mine" ? "on" : "", onClick: () => setTab("mine") }, "המשימות שלי"))), tab === "inbox" && /* @__PURE__ */ React.createElement("div", { className: "stack sm" }, inbox.length === 0 && /* @__PURE__ */ React.createElement(Empty, null, "אין בקשות מילוי מקום שממתינות לתשובה."), inbox.map((s) => {
-      const absent = teachers.find((t) => t.id === s.req.teacherId);
-      return /* @__PURE__ */ React.createElement("div", { key: s.id, className: "paper-card" }, /* @__PURE__ */ React.createElement("div", { className: "msg-box" }, "שלום ", me.name.split(" ")[0], ", האם תוכל/י למלא את מקומו/ה של ", absent == null ? void 0 : absent.name, " ביום ", s.dayName, ",", " ", fmtDate(s.date), ", בשעה ה", s.period, s.type === "lesson" ? `, בכיתה ${s.cls}, בשיעור ${s.subject}?` : ", בתורנות חצר?"), /* @__PURE__ */ React.createElement("div", { className: "rows" }, /* @__PURE__ */ React.createElement("div", { className: "d-row" }, /* @__PURE__ */ React.createElement("span", { className: "d-key" }, "שעה"), /* @__PURE__ */ React.createElement("span", null, s.time)), /* @__PURE__ */ React.createElement("div", { className: "d-row" }, /* @__PURE__ */ React.createElement("span", { className: "d-key" }, "מיקום"), /* @__PURE__ */ React.createElement("span", null, s.room)), /* @__PURE__ */ React.createElement("div", { className: "d-row" }, /* @__PURE__ */ React.createElement("span", { className: "d-key" }, "חומרי לימוד"), /* @__PURE__ */ React.createElement("span", null, s.materials ? /* @__PURE__ */ React.createElement(FileLink, { fileId: s.materials.fileId, name: s.materials.name }) : "טרם הועלו על ידי המורה"))), /* @__PURE__ */ React.createElement("div", { className: "row gap wrap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-pri", onClick: () => onRespond(s.req.id, s.id, "accepted") }, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " מאשר/ת"), /* @__PURE__ */ React.createElement("button", { className: "btn-danger", onClick: () => onRespond(s.req.id, s.id, "declined") }, /* @__PURE__ */ React.createElement(X, { size: 14 }), " לא יכול/ה"), /* @__PURE__ */ React.createElement("button", { className: "btn-info", onClick: () => setAskId(askId === s.id ? null : s.id) }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " מבקש/ת פרטים נוספים")), askId === s.id && /* @__PURE__ */ React.createElement("div", { className: "stack sm", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("label", { className: "lbl", style: { marginTop: 0 } }, "מה תרצה/י לשאול או לבקש?"), /* @__PURE__ */ React.createElement(
-        "textarea",
-        {
-          rows: 3,
-          value: askText,
-          onChange: (e) => setAskText(e.target.value),
-          placeholder: "לדוגמה: באיזה חדר השיעור? האם יש חומרים נוספים? אוכל להגיע רק מהשעה השנייה..."
-        }
-      ), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          className: "btn-pri",
-          disabled: !askText.trim(),
-          onClick: () => {
-            onRespond(s.req.id, s.id, "question", askText.trim());
-            setAskId(null);
-            setAskText("");
-          }
-        },
-        /* @__PURE__ */ React.createElement(Send, { size: 14 }),
-        " שליחת הפנייה להנהלה"
-      ), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost", onClick: () => {
-        setAskId(null);
-        setAskText("");
-      } }, "ביטול"))));
-    })), tab === "mine" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("div", { className: "board-top" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title", style: { margin: 0 } }, /* @__PURE__ */ React.createElement(ClipboardList, { size: 16 }), " מערכת המשימות של ", me.name), /* @__PURE__ */ React.createElement("button", { className: "btn-sec xs-btn no-print", onClick: () => window.print() }, /* @__PURE__ */ React.createElement(Printer, { size: 13 }), " הדפסה")), confirmed.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "muted" }, "אין עדיין שיבוצים מאושרים.") : /* @__PURE__ */ React.createElement(React.Fragment, null, confirmed.some((s) => s.type === "lesson" && s.materials) && /* @__PURE__ */ React.createElement("div", { className: "note-box" }, /* @__PURE__ */ React.createElement(Paperclip, { size: 14 }), " חומרי לימוד שהמורים העלו מופיעים בעמודה האחרונה — לחיצה על שם הקובץ פותחת אותו."), /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "data-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "תאריך"), /* @__PURE__ */ React.createElement("th", null, "יום"), /* @__PURE__ */ React.createElement("th", null, "שעה"), /* @__PURE__ */ React.createElement("th", null, "שעות"), /* @__PURE__ */ React.createElement("th", null, "במקום"), /* @__PURE__ */ React.createElement("th", null, "כיתה"), /* @__PURE__ */ React.createElement("th", null, "מקצוע"), /* @__PURE__ */ React.createElement("th", null, "מיקום"), /* @__PURE__ */ React.createElement("th", null, "חומרים"))), /* @__PURE__ */ React.createElement("tbody", null, confirmed.map((s) => {
+    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("div", { className: "subtabs", style: { marginInlineStart: 0 } }, /* @__PURE__ */ React.createElement("button", { className: tab === "inbox" ? "on" : "", onClick: () => setTab("inbox") }, "בקשות שהתקבלו ", inbox.length > 0 && /* @__PURE__ */ React.createElement("span", { className: "badge" }, inbox.length)), /* @__PURE__ */ React.createElement("button", { className: tab === "mine" ? "on" : "", onClick: () => setTab("mine") }, "המשימות שלי"))), tab === "inbox" && /* @__PURE__ */ React.createElement("div", { className: "stack sm" }, inbox.length === 0 && /* @__PURE__ */ React.createElement(Empty, null, "אין בקשות מילוי מקום שממתינות לתשובה."), (function () {
+      const dayMap = {};
+      inbox.forEach(function (s) { (dayMap[s.date] = dayMap[s.date] || []).push(s); });
+      return Object.keys(dayMap).sort().map(function (d) {
+        const slots = dayMap[d].slice().sort(function (a, b) { return (a.period > b.period) ? 1 : -1; });
+        const open = !!openDays[d];
+        const sel = picked[d] || [];
+        const names = slots.map(function (s) { const t = teachers.find(function (x) { return x.id === s.req.teacherId; }); return t ? t.name : "מורה"; }).filter(function (v, k, arr) { return arr.indexOf(v) === k; }).join(", ");
+        const yards = slots.filter(function (s) { return s.type === "yard"; }).length;
+        const lbl = function (s) { return "שעה " + s.period + (s.time ? " · " + s.time : "") + " · " + (s.type === "yard" ? "תורנות חצר" : ((s.subject || s.subj || "") + " " + (s.cls || "")).trim()); };
+        return /* @__PURE__ */ React.createElement("div", { key: d, className: "paper-card" },
+          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" } },
+            /* @__PURE__ */ React.createElement("div", null,
+              /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, fontSize: "17px" } }, slots[0].dayName + " · " + fmtDate(d)),
+              /* @__PURE__ */ React.createElement("div", { style: { fontSize: "13px", opacity: 0.75, marginTop: "4px" } }, "במקום " + names + " · " + slots.length + " שעות" + (yards ? " (כולל " + yards + " תורנות חצר)" : ""))),
+            /* @__PURE__ */ React.createElement("span", { className: "badge" }, slots.length)),
+          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" } },
+            /* @__PURE__ */ React.createElement("button", { className: "btn primary", onClick: function () { slots.forEach(function (s) { onRespond(s.req.id, s.id, "accepted"); }); } }, "\u2713 אישור כל היום"),
+            /* @__PURE__ */ React.createElement("button", { className: "btn", onClick: function () { slots.forEach(function (s) { onRespond(s.req.id, s.id, "declined"); }); } }, "\u2715 לא יכול/ה"),
+            /* @__PURE__ */ React.createElement("button", { className: "btn", onClick: function () { setOpenDays(function (o) { const n = Object.assign({}, o); n[d] = !o[d]; return n; }); } }, open ? "סגירת השעות" : "בחירת שעות \u25be"),
+            /* @__PURE__ */ React.createElement("button", { className: "btn", onClick: function () { setAskDay(askDay === d ? null : d); setAskText(""); } }, "שאלה")),
+          askDay === d && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px" } },
+            /* @__PURE__ */ React.createElement("textarea", { value: askText, onChange: function (e) { setAskText(e.target.value); }, placeholder: "מה תרצה/י לשאול?", style: { width: "100%", minHeight: "60px", fontFamily: "inherit", fontSize: "14px", padding: "8px", borderRadius: "8px", border: "1px solid rgba(0,0,0,.2)" } }),
+            /* @__PURE__ */ React.createElement("button", { className: "btn primary", style: { marginTop: "6px" }, onClick: function () { onRespond(slots[0].req.id, slots[0].id, "question", askText.trim()); setAskDay(null); setAskText(""); } }, "שליחת השאלה")),
+          open && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "12px", borderTop: "1px solid rgba(0,0,0,.12)", paddingTop: "10px" } },
+            slots.map(function (s) {
+              return /* @__PURE__ */ React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", padding: "4px 0", cursor: "pointer" } },
+                /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: sel.indexOf(s.id) >= 0, onChange: function () { setPicked(function (p) { const cur = p[d] || []; const n = Object.assign({}, p); n[d] = cur.indexOf(s.id) >= 0 ? cur.filter(function (x) { return x !== s.id; }) : cur.concat([s.id]); return n; }); } }),
+                /* @__PURE__ */ React.createElement("span", null, lbl(s)));
+            }),
+            /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" } },
+              /* @__PURE__ */ React.createElement("button", { className: "btn primary", disabled: sel.length === 0, onClick: function () { slots.filter(function (s) { return sel.indexOf(s.id) >= 0; }).forEach(function (s) { onRespond(s.req.id, s.id, "accepted"); }); setPicked(function (p) { const n = Object.assign({}, p); n[d] = []; return n; }); } }, "אישור " + sel.length + " שעות שנבחרו"),
+              /* @__PURE__ */ React.createElement("button", { className: "btn", disabled: sel.length === 0, onClick: function () { slots.filter(function (s) { return sel.indexOf(s.id) >= 0; }).forEach(function (s) { onRespond(s.req.id, s.id, "declined"); }); setPicked(function (p) { const n = Object.assign({}, p); n[d] = []; return n; }); } }, "דחיית הנבחרות"))));
+      });
+    })()), tab === "mine" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("div", { className: "board-top" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title", style: { margin: 0 } }, /* @__PURE__ */ React.createElement(ClipboardList, { size: 16 }), " מערכת המשימות של ", me.name), /* @__PURE__ */ React.createElement("button", { className: "btn-sec xs-btn no-print", onClick: () => window.print() }, /* @__PURE__ */ React.createElement(Printer, { size: 13 }), " הדפסה")), confirmed.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "muted" }, "אין עדיין שיבוצים מאושרים.") : /* @__PURE__ */ React.createElement(React.Fragment, null, confirmed.some((s) => s.type === "lesson" && s.materials) && /* @__PURE__ */ React.createElement("div", { className: "note-box" }, /* @__PURE__ */ React.createElement(Paperclip, { size: 14 }), " חומרי לימוד שהמורים העלו מופיעים בעמודה האחרונה — לחיצה על שם הקובץ פותחת אותו."), /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "data-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "תאריך"), /* @__PURE__ */ React.createElement("th", null, "יום"), /* @__PURE__ */ React.createElement("th", null, "שעה"), /* @__PURE__ */ React.createElement("th", null, "שעות"), /* @__PURE__ */ React.createElement("th", null, "במקום"), /* @__PURE__ */ React.createElement("th", null, "כיתה"), /* @__PURE__ */ React.createElement("th", null, "מקצוע"), /* @__PURE__ */ React.createElement("th", null, "מיקום"), /* @__PURE__ */ React.createElement("th", null, "חומרים"))), /* @__PURE__ */ React.createElement("tbody", null, confirmed.map((s) => {
       const absent = teachers.find((t) => t.id === s.req.teacherId);
       return /* @__PURE__ */ React.createElement("tr", { key: s.id, className: s.type === "yard" ? "yard-row" : "" }, /* @__PURE__ */ React.createElement("td", null, fmtDate(s.date)), /* @__PURE__ */ React.createElement("td", null, s.dayName), /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("strong", null, s.period)), /* @__PURE__ */ React.createElement("td", null, s.time), /* @__PURE__ */ React.createElement("td", null, absent == null ? void 0 : absent.name), /* @__PURE__ */ React.createElement("td", null, s.type === "yard" ? "—" : s.cls), /* @__PURE__ */ React.createElement("td", null, s.type === "yard" ? "תורנות חצר" : s.subject), /* @__PURE__ */ React.createElement("td", null, s.room), /* @__PURE__ */ React.createElement("td", null, s.materials ? /* @__PURE__ */ React.createElement(FileLink, { fileId: s.materials.fileId, name: s.materials.name, small: true }) : /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, "טרם התקבלו")));
     })))))));
@@ -1449,6 +1459,7 @@ ${lines.join("\n")}
     const a = [];
     if (user.teacherId) a.push(user.teacherId);
     if (eff.includes("management")) a.push(...LEGACY_MGMT_TAGS);
+    if ((user.roles || []).includes("counselor")) a.push("counselor_only");
     return a.slice(0, 10);
   }
   function App() {
@@ -1607,7 +1618,8 @@ ${lines.join("\n")}
         snap.forEach((d) => {
           const p = d.data();
           const isMgmt = effectiveRoles(p.roles).includes("management");
-          if (wantsMgmt && isMgmt || p.teacherId && tags.includes(p.teacherId)) uids.add(d.id);
+          const isCounselor = (p.roles || []).includes("counselor");
+          if (wantsMgmt && isMgmt || p.teacherId && tags.includes(p.teacherId) || tags.includes("counselor_only") && isCounselor) uids.add(d.id);
         });
         await sendPushTo([...uids], title, body);
       } catch (e) {
@@ -1947,7 +1959,7 @@ ${q}`
       const st = answer === "accepted" ? "accepted" : "declined";
       await patchSlot(reqId, slotId, { assignStatus: st, respondedAt: (/* @__PURE__ */ new Date()).toISOString() });
       await notify(
-        ["management", req.teacherId],
+        st === "accepted" ? ["management", req.teacherId] : ["counselor_only"],
         st === "accepted" ? "שיבוץ אושר" : "ממלא/ת מקום סירב/ה",
         `${nameOf(myId)} — ${fmtDate(slot.date)}, שעה ${slot.period}${st === "declined" ? ". נדרש איתור חלופה." : "."}`
       );
