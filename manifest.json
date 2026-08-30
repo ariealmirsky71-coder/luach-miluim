@@ -1,0 +1,27 @@
+{
+  "name": "לוח מילואי מקום",
+  "short_name": "לוח מילואים",
+  "description": "ניהול היעדרויות ומילוי מקום בבית ספר",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F3EB",
+  "theme_color": "#2F5233",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "luach-miluim",
+  "version": "1.0.0",
+  "description": "מערכת ניהול היעדרויות ומילוי מקום בבית ספר",
+  "private": true,
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
