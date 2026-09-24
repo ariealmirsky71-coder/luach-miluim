@@ -118,8 +118,8 @@
   const ChevronRight = (p) => /* @__PURE__ */ React.createElement(Ic, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "9 18 15 12 9 6" }));
   const ChevronLeft = (p) => /* @__PURE__ */ React.createElement(Ic, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "15 18 9 12 15 6" }));
   const PERIODS = 8;
-  const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי"];
-  const DAY_BY_JS = { 0: "ראשון", 1: "שני", 2: "שלישי", 3: "רביעי", 4: "חמישי" };
+  const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
+  const DAY_BY_JS = { 0: "ראשון", 1: "שני", 2: "שלישי", 3: "רביעי", 4: "חמישי", 5: "שישי" };
   const PERIOD_TIMES = [
     "08:00–08:45",
     "08:45–09:30",
@@ -171,8 +171,14 @@
   }
   function sched(rows) {
     const o = {};
-    DAYS.forEach((d, i) => o[d] = parseRow(rows[i]));
+    DAYS.forEach((d, i) => o[d] = parseRow(rows[i] || ""));
     return o;
+  }
+
+  /** קריאה בטוחה של יום במערכת שעות — מורים שנשמרו לפני שיום שישי נוסף לא מכילים אותו */
+  function dayRow(teacher, day) {
+    const row = teacher && teacher.schedule && teacher.schedule[day];
+    return Array.isArray(row) ? row : Array.from({ length: PERIODS }, () => ({ type: "empty" }));
   }
   const seedTeachers = [
     {
@@ -477,7 +483,7 @@
   }
   function ScheduleGrid({ teacher, editable, onCellClick, selected }) {
     return /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "grid-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "corner" }, "שעה"), DAYS.map((d) => /* @__PURE__ */ React.createElement("th", { key: d }, d)))), /* @__PURE__ */ React.createElement("tbody", null, PERIOD_TIMES.map((time, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { className: "period-label" }, /* @__PURE__ */ React.createElement("span", { className: "period-num" }, i + 1), /* @__PURE__ */ React.createElement("span", { className: "period-time" }, time)), DAYS.map((day) => {
-      const cell = teacher.schedule[day][i];
+      const cell = dayRow(teacher, day)[i] || { type: "empty" };
       const sel = selected && selected.day === day && selected.period === i;
       return /* @__PURE__ */ React.createElement(
         "td",
@@ -1031,14 +1037,57 @@ ${note}`)) return;
     const [cls, setCls] = useState(cell.cls || "");
     return /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h4", { className: "mini-title", style: { marginTop: 0 } }, "עריכת משבצת · יום ", day, ", שעה ", period + 1), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "סוג"), /* @__PURE__ */ React.createElement("select", { value: type, onChange: (e) => setType(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "lesson" }, "שיעור"), /* @__PURE__ */ React.createElement("option", { value: "prep" }, "פרטני / שהייה"), /* @__PURE__ */ React.createElement("option", { value: "yard" }, "תורנות חצר"), /* @__PURE__ */ React.createElement("option", { value: "empty" }, "ריק")), type === "lesson" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "מקצוע"), /* @__PURE__ */ React.createElement("input", { value: subject, onChange: (e) => setSubject(e.target.value), placeholder: "מתמטיקה" }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "כיתה"), /* @__PURE__ */ React.createElement("input", { value: cls, onChange: (e) => setCls(e.target.value), placeholder: "ד׳1" })), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-pri", onClick: () => onSave(type === "lesson" ? { type, subject: subject || "מקצוע", cls: cls || "—" } : { type }) }, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " שמירה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost", onClick: onClose }, "ביטול")));
   }
-  function AdminView({ teachers, onUpdateCell, onAddTeacher, onUpdateTeacher, onDeleteTeacher, audit }) {
+  function SettingsPanel({ onSaveEmails, onCleanDemo }) {
+    const [emails, setEmails] = useState(PRINCIPAL_ALERT_EMAILS.join(", "));
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState("");
+    const [cleaning, setCleaning] = useState(false);
+
+    async function save() {
+      const list = emails.split(/[,\n;]+/).map((e) => e.trim()).filter((e) => e.includes("@"));
+      if (!list.length) { setMsg("יש להזין לפחות כתובת מייל אחת תקינה."); return; }
+      setBusy(true); setMsg("");
+      try {
+        await onSaveEmails(list);
+        setEmails(list.join(", "));
+        setMsg("נשמר. ההתראות יישלחו מעכשיו לכתובות האלה.");
+      } catch (e) {
+        setMsg("שגיאה בשמירה: " + ((e && e.message) || "לא ידוע"));
+      }
+      setBusy(false);
+    }
+
+    return /* @__PURE__ */ React.createElement("div", { className: "split-3-2" },
+      /* @__PURE__ */ React.createElement("div", { className: "paper-card" },
+        /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Mail, { size: 16 }), " כתובות לקבלת התראות"),
+        /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "לכאן יישלחו מיילים על כל בקשת היעדרות חדשה ועל כל אישור. אפשר להזין כמה כתובות, מופרדות בפסיק."),
+        /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "כתובות מייל"),
+        /* @__PURE__ */ React.createElement("textarea", { rows: 3, dir: "ltr", value: emails, onChange: (e) => setEmails(e.target.value), placeholder: "principal@example.com, counselor@example.com" }),
+        msg && /* @__PURE__ */ React.createElement("div", { className: "note-box" }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " ", msg),
+        /* @__PURE__ */ React.createElement("button", { className: "btn-pri", disabled: busy, onClick: save }, busy ? "שומר..." : "שמירת הכתובות")
+      ),
+      /* @__PURE__ */ React.createElement("div", { className: "paper-card" },
+        /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 16 }), " ניקוי נתוני הדגמה"),
+        /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "בהתקנה הראשונה נוצרו ארבע בקשות היעדרות לדוגמה, שמופיעות בדוחות ומעוותות את הנתונים. הכפתור מוחק רק אותן — בקשות אמיתיות לא ייפגעו."),
+        /* @__PURE__ */ React.createElement("button", { className: "btn-danger", disabled: cleaning, onClick: async () => {
+          if (!window.confirm("למחוק את ארבע בקשות ההדגמה? הפעולה אינה הפיכה.")) return;
+          setCleaning(true);
+          const n = await onCleanDemo();
+          setCleaning(false);
+          alert(n > 0 ? `נמחקו ${n} בקשות הדגמה.` : "לא נמצאו בקשות הדגמה — המסד נקי.");
+        } }, cleaning ? "מוחק..." : "מחיקת בקשות ההדגמה")
+      )
+    );
+  }
+
+  function AdminView({ saveAlertEmailsUI, cleanDemoData, teachers, onUpdateCell, onAddTeacher, onUpdateTeacher, onDeleteTeacher, audit }) {
     const [tab, setTab] = useState("sched");
     const [tid, setTid] = useState(teachers[0].id);
     const [sel, setSel] = useState(null);
     const [nf, setNf] = useState({ name: "", subject: "", phone: "", email: "", externalSub: false });
     const [confirmDelete, setConfirmDelete] = useState(null);
     const t = teachers.find((x) => x.id === tid) || teachers[0];
-    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("div", { className: "subtabs" }, /* @__PURE__ */ React.createElement("button", { className: tab === "sched" ? "on" : "", onClick: () => setTab("sched") }, "מערכות שעות"), /* @__PURE__ */ React.createElement("button", { className: tab === "staff" ? "on" : "", onClick: () => setTab("staff") }, "ניהול צוות"), /* @__PURE__ */ React.createElement("button", { className: tab === "audit" ? "on" : "", onClick: () => setTab("audit") }, "יומן פעילות"))), tab === "sched" && /* @__PURE__ */ React.createElement("div", { className: "split-3-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "chips" }, teachers.map((x) => /* @__PURE__ */ React.createElement("button", { key: x.id, className: `chip ${x.id === tid ? "on" : ""}`, onClick: () => {
+    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("div", { className: "subtabs" }, /* @__PURE__ */ React.createElement("button", { className: tab === "sched" ? "on" : "", onClick: () => setTab("sched") }, "מערכות שעות"), /* @__PURE__ */ React.createElement("button", { className: tab === "staff" ? "on" : "", onClick: () => setTab("staff") }, "ניהול צוות"), /* @__PURE__ */ React.createElement("button", { className: tab === "audit" ? "on" : "", onClick: () => setTab("audit") }, "יומן פעילות"), /* @__PURE__ */ React.createElement("button", { className: tab === "settings" ? "on" : "", onClick: () => setTab("settings") }, "הגדרות"))), tab === "sched" && /* @__PURE__ */ React.createElement("div", { className: "split-3-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "chips" }, teachers.map((x) => /* @__PURE__ */ React.createElement("button", { key: x.id, className: `chip ${x.id === tid ? "on" : ""}`, onClick: () => {
       setTid(x.id);
       setSel(null);
     } }, x.name))), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "לחיצה על משבצת פותחת עריכה. מערכת השעות היא המקור שממנו המערכת מזהה אוטומטית שיעורים ותורנויות בכל בקשת היעדרות — אין צורך להזין אותם שוב."), /* @__PURE__ */ React.createElement(ScheduleGrid, { teacher: t, editable: true, selected: sel, onCellClick: (day, period) => setSel({ day, period }) })), /* @__PURE__ */ React.createElement("div", null, sel ? /* @__PURE__ */ React.createElement(
@@ -1047,7 +1096,7 @@ ${note}`)) return;
         key: `${t.id}-${sel.day}-${sel.period}`,
         day: sel.day,
         period: sel.period,
-        cell: t.schedule[sel.day][sel.period],
+        cell: dayRow(t, sel.day)[sel.period] || { type: "empty" },
         onSave: (c) => {
           onUpdateCell(t.id, sel.day, sel.period, c);
           setSel(null);
@@ -1060,7 +1109,7 @@ ${note}`)) return;
     } }, "מחיקה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setConfirmDelete(null) }, "ביטול")) : /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", title: "הסרת המורה", onClick: () => setConfirmDelete(x.id) }, /* @__PURE__ */ React.createElement(X, { size: 12 })))))))), /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " שינוי כתובת הדוא״ל בטבלה משנה את כתובת ההתראות, אבל ", /* @__PURE__ */ React.createElement("strong", null, "לא"), " את שם המשתמש להתחברות. שינוי שם משתמש נעשה ב-Firebase, תחת Authentication.")), /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }), " הוספת מורה"), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "שם מלא"), /* @__PURE__ */ React.createElement("input", { value: nf.name, onChange: (e) => setNf({ ...nf, name: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "מקצוע עיקרי"), /* @__PURE__ */ React.createElement("input", { value: nf.subject, onChange: (e) => setNf({ ...nf, subject: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "טלפון"), /* @__PURE__ */ React.createElement("input", { value: nf.phone, onChange: (e) => setNf({ ...nf, phone: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "דוא״ל (ישמש גם כשם משתמש)"), /* @__PURE__ */ React.createElement("input", { value: nf.email, onChange: (e) => setNf({ ...nf, email: e.target.value }), placeholder: "name@school.org.il", dir: "ltr" }), /* @__PURE__ */ React.createElement("label", { className: "p-check", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: nf.externalSub, onChange: (e) => setNf({ ...nf, externalSub: e.target.checked }) }), "ממלא/ת מקום חיצוני/ת (לא מורה קבוע/ה בבית הספר)"), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", disabled: !nf.name.trim(), onClick: () => {
       onAddTeacher(nf);
       setNf({ name: "", subject: "", phone: "", email: "", externalSub: false });
-    } }, /* @__PURE__ */ React.createElement(Plus, { size: 14 }), " הוספה למערכת"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "נוצרת אוטומטית התחברות עם הדוא״ל שהוזן וסיסמת ברירת מחדל (", DEMO_PASSWORD, "). ממלא/ת מקום חיצוני/ת יראה/תראה רק את מסך השיבוצים שלו/ה, בלי הגשת היעדרויות."))), tab === "audit" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " יומן פעילות"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "כל פעולה במערכת נרשמת עם שם המשתמש, התאריך והשעה."), /* @__PURE__ */ React.createElement("div", { className: "timeline" }, audit.map((a, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "tl-row" }, /* @__PURE__ */ React.createElement("span", { className: "tl-dot" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, a.action), /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, " · ", a.actor, " · ", fmtDT(a.at))))))));
+    } }, /* @__PURE__ */ React.createElement(Plus, { size: 14 }), " הוספה למערכת"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "נוצרת אוטומטית התחברות עם הדוא״ל שהוזן וסיסמה אקראית, שתוצג פעם אחת בלבד לאחר ההוספה — יש להעתיק אותה ולמסור למורה. ממלא/ת מקום חיצוני/ת יראה/תראה רק את מסך השיבוצים שלו/ה, בלי הגשת היעדרויות."))), tab === "audit" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " יומן פעילות"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "כל פעולה במערכת נרשמת עם שם המשתמש, התאריך והשעה."), /* @__PURE__ */ React.createElement("div", { className: "timeline" }, audit.map((a, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "tl-row" }, /* @__PURE__ */ React.createElement("span", { className: "tl-dot" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, a.action), /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, " · ", a.actor, " · ", fmtDT(a.at)))))), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsPanel, { onSaveEmails: saveAlertEmailsUI, onCleanDemo: cleanDemoData })));
   }
   function TodayView({ requests, teachers, onGoAssign }) {
     const [offset, setOffset] = useState(0);
@@ -1103,6 +1152,8 @@ ${note}`)) return;
     ), tab === "reports" && /* @__PURE__ */ React.createElement(ReportsView, { requests, teachers }), tab === "setup" && /* @__PURE__ */ React.createElement(
       AdminView,
       {
+        saveAlertEmailsUI: props.saveAlertEmailsUI,
+        cleanDemoData: props.cleanDemoData,
         teachers,
         onUpdateCell: props.onUpdateCell,
         onAddTeacher: props.onAddTeacher,
@@ -1314,7 +1365,8 @@ ${lines.join("\n")}
   const EMAILJS_SERVICE_ID = "service_hkna365";
   const EMAILJS_TEMPLATE_ID = "template_zzfvcie";
   const EMAILJS_PUBLIC_KEY = "-f2qRm2IPwQB8x49y";
-  const PRINCIPAL_ALERT_EMAILS = ["arielmirsky71@gmail.com"];
+  const DEFAULT_ALERT_EMAILS = ["ariealmirsky71@gmail.com", "arielmirsky71@gmail.com"];
+  let PRINCIPAL_ALERT_EMAILS = DEFAULT_ALERT_EMAILS.slice();
   let emailjsReady = false;
   function initEmailJs() {
     if (emailjsReady) return true;
@@ -1345,6 +1397,19 @@ ${lines.join("\n")}
     }
   }
   firebase.initializeApp(firebaseConfig);
+  // כתובות ההתראות נשמרות ב-Firestore וניתנות לעריכה מתוך המערכת
+  async function loadAlertEmails() {
+    try {
+      const snap = await db.collection("settings").doc("alerts").get();
+      if (snap.exists && Array.isArray(snap.data().emails) && snap.data().emails.length) {
+        PRINCIPAL_ALERT_EMAILS = snap.data().emails;
+      }
+    } catch (e) { console.warn("alert emails load failed", e); }
+  }
+  async function saveAlertEmails(list) {
+    await db.collection("settings").doc("alerts").set({ emails: list });
+    PRINCIPAL_ALERT_EMAILS = list;
+  }
   const db = firebase.firestore();
   const auth = firebase.auth();
   auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function(){});
@@ -1353,9 +1418,17 @@ ${lines.join("\n")}
     const app = existing || firebase.initializeApp(firebaseConfig, "Secondary");
     return app.auth();
   }
-  async function createLoginAccount(email, displayName, teacherId, roles) {
+  /** סיסמה אקראית קריאה — בלי תווים שמתבלבלים ביניהם */
+  function generatePassword() {
+    const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let out = "";
+    for (let i = 0; i < 10; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
+
+  async function createLoginAccount(email, displayName, teacherId, roles, password) {
     const secondaryAuth = getSecondaryAuth();
-    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, DEMO_PASSWORD);
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password || DEMO_PASSWORD);
     await db.collection("userProfiles").doc(cred.user.uid).set({ displayName, teacherId, roles });
     await secondaryAuth.signOut();
   }
@@ -1480,9 +1553,10 @@ ${lines.join("\n")}
     const [pwdMsg, setPwdMsg] = useState("");
     const [pushState, setPushState] = useState("off");
     const [pushMsg, setPushMsg] = useState("");
+  const [newAccount, setNewAccount] = useState(null);
     const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
     useEffect(() => {
-      seedDatabaseOnce().then(() => setBooting(false)).catch((e) => {
+      seedDatabaseOnce().then(() => loadAlertEmails()).then(() => setBooting(false)).catch((e) => {
         console.error(e);
         setBootError("שגיאה באתחול המערכת: " + (e && e.message || "לא ידוע") + " — נסה/י לרענן את הדף.");
         setBooting(false);
@@ -2036,15 +2110,16 @@ ${q}`
     }
     const updateCell = async (tid, day, period, cell) => {
       const t = teachers.find((x) => x.id === tid);
-      const schedule = { ...t.schedule, [day]: t.schedule[day].map((c, i) => i === period ? cell : c) };
+      const schedule = { ...t.schedule, [day]: dayRow(t, day).map((c, i) => i === period ? cell : c) };
       await db.collection("teachers").doc(tid).update({ schedule });
     };
     const addTeacher = async (f) => {
       const blank = DAYS.reduce((a, d) => ({ ...a, [d]: Array.from({ length: PERIODS }, () => ({ type: "empty" })) }), {});
       const id = "t-" + uid();
       const email = f.email || `user-${id}@school.org.il`;
+      const newPassword = generatePassword();
       try {
-        await createLoginAccount(email, f.name, id, f.externalSub ? ["substitute"] : ["teacher"]);
+        await createLoginAccount(email, f.name, id, f.externalSub ? ["substitute"] : ["teacher"], newPassword);
       } catch (e) {
         toast('שגיאה ביצירת התחברות למורה — ייתכן שהדוא"ל כבר בשימוש.');
         return;
@@ -2061,9 +2136,28 @@ ${q}`
         schedule: blank
       });
       await log(`נוסף מורה: ${f.name}`);
-      toast(`המורה נוסף/ה. שם המשתמש להתחברות: ${email} (סיסמת ברירת מחדל: ${DEMO_PASSWORD})`);
+      setNewAccount({ name: f.name, email, password: newPassword });
     };
-    const updateTeacher = async (id, patch) => {
+    const saveAlertEmailsUI = async (list) => {
+    await saveAlertEmails(list);
+    await log(`עודכנו כתובות ההתראות (${list.length})`);
+  };
+
+  const cleanDemoData = async () => {
+    const demoIds = ["r1", "r2", "r3", "r4"];
+    let n = 0;
+    for (const id of demoIds) {
+      try {
+        const ref = db.collection("requests").doc(id);
+        const snap = await ref.get();
+        if (snap.exists) { await ref.delete(); n++; }
+      } catch (e) { console.warn("demo cleanup", id, e); }
+    }
+    if (n) await log(`נמחקו ${n} בקשות הדגמה`);
+    return n;
+  };
+
+  const updateTeacher = async (id, patch) => {
       await db.collection("teachers").doc(id).update(patch);
     };
     const deleteTeacher = async (id) => {
@@ -2104,15 +2198,19 @@ ${q}`
         button{ font-family:inherit; cursor:pointer; }
         :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
 
-        input,select,textarea{ width:100%; border:1.5px solid var(--line); border-radius:9px; padding:8px 10px;
-          font-family:'Heebo',sans-serif; font-size:13.5px; background:#fff; color:var(--ink); margin-bottom:10px; }
+        input,select,textarea{ width:100%; border:1.5px solid var(--line); border-radius:10px; padding:9px 11px;
+          font-family:'Heebo',sans-serif; font-size:13.5px; background:#fff; color:var(--ink); margin-bottom:10px;
+          transition:border-color .15s ease, box-shadow .15s ease; }
+        input:focus,select:focus,textarea:focus{ border-color:var(--pri); box-shadow:0 0 0 3px rgba(47,82,51,.12); outline:none; }
         input[type=checkbox]{ width:auto; margin:0; }
         .lbl{ display:block; font-weight:700; font-size:12px; color:var(--muted); margin:14px 0 6px; }
         .inline-select{ width:auto; margin-bottom:0; }
         .mini-input{ margin:0; padding:5px 8px; font-size:12px; }
         .inline-cb{ margin-inline-end:6px !important; }
 
-        .paper-card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+        .paper-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px;
+          box-shadow:0 1px 2px rgba(30,42,34,.04), 0 6px 16px -10px rgba(30,42,34,.14); }
+        .paper-card:hover{ box-shadow:0 1px 2px rgba(30,42,34,.05), 0 10px 24px -12px rgba(30,42,34,.18); }
         .stack{ display:flex; flex-direction:column; gap:12px; }
         .stack.sm{ gap:8px; }
         .row{ display:flex; align-items:center; } .gap{ gap:8px; } .row.wrap{ flex-wrap:wrap; }
@@ -2121,7 +2219,9 @@ ${q}`
         .danger-text{ color:var(--red); font-weight:600; }
         .scroll-x{ overflow-x:auto; }
 
-        .sec-title{ font-family:'Frank Ruhl Libre',serif; font-size:17px; font-weight:700; margin:0 0 12px; display:flex; align-items:center; gap:7px; }
+        .sec-title{ font-family:'Frank Ruhl Libre',serif; font-size:17.5px; font-weight:700; margin:0 0 14px;
+          display:flex; align-items:center; gap:8px; letter-spacing:-.01em; }
+        .sec-title::after{ content:''; flex:1; height:1px; background:linear-gradient(to left, transparent, var(--line)); }
         .mini-title{ font-size:13px; font-weight:700; color:var(--muted); margin:16px 0 8px; }
 
         header.top{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
@@ -2137,7 +2237,9 @@ ${q}`
         .roles{ display:flex; gap:4px; background:#fff; padding:4px; border-radius:12px; border:1px solid var(--line); flex-wrap:wrap; }
         .roles button{ display:flex; align-items:center; gap:6px; padding:8px 13px; border:none; background:transparent;
           border-radius:9px; font-weight:700; font-size:12.5px; color:var(--muted); }
-        .roles button.on{ background:var(--pri); color:#fff; }
+        .roles button:hover{ background:rgba(47,82,51,.07); color:var(--pri-d); }
+        .roles button.on{ background:var(--pri); color:#fff; box-shadow:0 2px 8px -2px rgba(47,82,51,.45); }
+        .roles button.on:hover{ background:var(--pri-d); color:#fff; }
 
         .bell-wrap{ position:relative; }
         .bell{ background:#fff; border:1px solid var(--line); border-radius:11px; padding:10px; display:flex; color:var(--ink); position:relative; }
@@ -2157,17 +2259,26 @@ ${q}`
         .login-card{ width:100%; max-width:420px; }
         .user-chip{ display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
           border-radius:11px; padding:6px 12px; font-size:12.5px; font-weight:700; color:var(--ink); }
-        .notif-banner{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#fff; border:1.5px dashed var(--pri);
-          color:var(--pri-d); border-radius:11px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; font-weight:600; }
+        .notif-banner{ display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+          background:linear-gradient(135deg,rgba(47,82,51,.06),rgba(47,82,51,.02));
+          border:1px solid rgba(47,82,51,.25); color:var(--pri-d); border-radius:12px;
+          padding:11px 15px; margin-bottom:16px; font-size:12.5px; font-weight:600; }
 
         .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
         .subtabs{ display:flex; gap:3px; background:#fff; border:1px solid var(--line); border-radius:11px; padding:4px; margin-inline-start:auto; flex-wrap:wrap; }
         .subtabs button{ border:none; background:transparent; padding:7px 13px; border-radius:8px; font-size:12.5px; font-weight:700; color:var(--muted); display:flex; align-items:center; gap:5px; }
+        .subtabs button:hover{ background:rgba(47,82,51,.07); color:var(--pri-d); }
         .subtabs button.on{ background:var(--pri); color:#fff; }
+        .subtabs button.on:hover{ background:var(--pri-d); color:#fff; }
         .badge{ background:var(--red); color:#fff; border-radius:9px; padding:0 5px; font-size:10px; }
 
         .btn-pri{ background:var(--pri); color:#fff; border:none; padding:9px 16px; border-radius:9px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
-        .btn-pri:hover{ background:var(--pri-d); } .btn-pri:disabled{ opacity:.4; cursor:not-allowed; }
+        .btn-pri:hover{ background:var(--pri-d); transform:translateY(-1px); box-shadow:0 4px 12px -4px rgba(47,82,51,.5); }
+        .btn-pri:active{ transform:translateY(0); box-shadow:none; }
+        .btn-pri:disabled{ opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
+        .btn-pri,.btn-sec,.btn-info,.btn-danger,.btn-ghost,.chip,.roles button,.subtabs button{ transition:all .15s ease; }
+        .btn-sec:active,.btn-info:active,.btn-danger:active,.btn-ghost:active{ transform:translateY(1px); }
+        @media (prefers-reduced-motion:reduce){ .btn-pri,.btn-sec,.btn-info,.btn-danger,.btn-ghost,.chip{ transition:none; transform:none !important; } }
         .btn-sec{ background:#fff; color:var(--pri); border:1.5px solid var(--pri); padding:8px 14px; border-radius:9px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; }
         .btn-info{ background:#fff; color:var(--blue); border:1.5px solid var(--blue); padding:8px 14px; border-radius:9px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; }
         .btn-danger{ background:#fff; color:var(--red); border:1.5px solid var(--red); padding:8px 14px; border-radius:9px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; }
@@ -2176,8 +2287,8 @@ ${q}`
         .wide{ width:100%; justify-content:center; margin-top:16px; }
         .file-btn{ cursor:pointer; margin-bottom:0 !important; }
 
-        .stamp{ display:inline-flex; align-items:center; padding:3px 12px; border:2px solid currentColor; border-radius:8px;
-          font-weight:800; font-size:11.5px; transform:rotate(-2deg); white-space:nowrap; }
+        .stamp{ display:inline-flex; align-items:center; padding:3px 12px; border:1.5px solid currentColor; border-radius:999px;
+          font-weight:800; font-size:11.5px; white-space:nowrap; letter-spacing:-.01em; }
         .stamp-sm{ padding:2px 9px; font-size:10px; }
 
         .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
@@ -2195,7 +2306,11 @@ ${q}`
 
         .kpis{ display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
         .kpis.big{ margin-bottom:18px; }
-        .kpi{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 18px; text-align:center; flex:1; min-width:120px; }
+        .kpi{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:13px 18px; text-align:center;
+          flex:1; min-width:120px; position:relative; overflow:hidden;
+          box-shadow:0 1px 2px rgba(30,42,34,.04); }
+        .kpi::before{ content:''; position:absolute; inset-inline-start:0; top:0; bottom:0; width:3px; background:var(--pri); opacity:.5; }
+        .kpi.amber::before{ background:var(--amber); } .kpi.red::before{ background:var(--red); } .kpi.green::before{ background:var(--pri); }
         .kpi strong{ display:block; font-family:'Frank Ruhl Libre',serif; font-size:23px; color:var(--pri-d); line-height:1.15; }
         .kpi span{ font-size:11px; color:var(--muted); }
         .kpi.amber strong{ color:var(--amber); } .kpi.red strong{ color:var(--red); } .kpi.green strong{ color:var(--pri); }
@@ -2233,7 +2348,10 @@ ${q}`
 
         .data-table{ width:100%; border-collapse:collapse; min-width:620px; font-size:12.5px; }
         .data-table th{ background:var(--paper); text-align:right; padding:8px; font-size:11.5px; color:var(--muted); border-bottom:2px solid var(--line); }
-        .data-table td{ padding:8px; border-bottom:1px solid var(--line); }
+        .data-table td{ padding:9px 8px; border-bottom:1px solid var(--line); }
+        .data-table tbody tr:nth-child(even){ background:rgba(246,243,235,.55); }
+        .data-table tbody tr:hover{ background:rgba(47,82,51,.05); }
+        .data-table thead th{ position:sticky; top:0; z-index:2; }
         .data-table tr.yard-row{ background:rgba(201,138,46,.06); }
         .ltr-cell{ text-align:left; font-size:11.5px; }
         .toggle{ border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:4px 12px; font-size:11.5px; font-weight:700; color:var(--muted); }
@@ -2257,7 +2375,9 @@ ${q}`
         .detail-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px; }
 
         .req-card{ display:block; width:100%; text-align:right; background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:11px 13px; }
-        .req-card.on{ border-color:var(--pri); box-shadow:0 0 0 3px rgba(47,82,51,.1); }
+        .req-card{ transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+        .req-card:hover{ border-color:var(--muted); transform:translateY(-1px); }
+        .req-card.on{ border-color:var(--pri); box-shadow:0 0 0 3px rgba(47,82,51,.12); transform:none; }
         .rc-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
         .rc-name{ font-weight:700; font-size:13.5px; } .rc-dates{ font-size:12px; margin-bottom:3px; }
         .progress{ height:5px; background:var(--line); border-radius:3px; overflow:hidden; margin:5px 0 3px; }
@@ -2268,7 +2388,10 @@ ${q}`
         .card-body{ margin-top:14px; border-top:1px solid var(--line); padding-top:14px; }
         .rot{ transform:rotate(-90deg); }
 
-        .day-card{ border:1px solid var(--line); border-radius:12px; padding:12px; background:#fff; }
+        .day-card{ border:1px solid var(--line); border-radius:14px; padding:14px; background:#fff;
+          box-shadow:0 1px 2px rgba(30,42,34,.04); transition:box-shadow .15s ease; }
+        .day-card:hover{ box-shadow:0 6px 18px -10px rgba(30,42,34,.28); }
+        .day-card-head{ cursor:pointer; }
         .day-card-head{ display:flex; justify-content:space-between; align-items:center; width:100%;
           background:none; border:none; padding:0; text-align:right; gap:10px; }
         a.btn-sec, a.btn-ghost{ text-decoration:none; }
@@ -2316,7 +2439,9 @@ ${q}`
         .bar-fill{ display:block; height:100%; background:var(--pri); }
         .bar-val{ font-weight:800; color:var(--pri-d); min-width:22px; }
 
-        .empty-state{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px; }
+        .empty-state{ display:flex; align-items:center; gap:12px; color:var(--muted); font-size:13.5px;
+          background:linear-gradient(var(--paper),#fff); border-style:dashed; justify-content:center; text-align:center;
+          padding:26px 20px; }
         .empty-state p{ margin:0; }
 
         .toasts{ position:fixed; bottom:16px; inset-inline-start:16px; display:flex; flex-direction:column; gap:8px; z-index:60; }
@@ -2390,7 +2515,7 @@ ${q}`
     })), /* @__PURE__ */ React.createElement("div", { className: "bell-wrap" }, /* @__PURE__ */ React.createElement("button", { className: `bell ${notifPerm === "granted" ? "active" : ""}`, onClick: () => setBellOpen((b) => !b) }, /* @__PURE__ */ React.createElement(Bell, { size: 18 }), unread > 0 && /* @__PURE__ */ React.createElement("span", { className: "dot" }, unread)), bellOpen && /* @__PURE__ */ React.createElement("div", { className: "bell-panel" }, /* @__PURE__ */ React.createElement("div", { className: "bell-head" }, /* @__PURE__ */ React.createElement("strong", { style: { fontSize: 13 } }, "התראות"), myNotifs.length > 0 && /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: clearMyNotifications }, "ניקוי הכל")), /* @__PURE__ */ React.createElement("div", { className: "bell-list" }, myNotifs.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "bell-item" }, /* @__PURE__ */ React.createElement("span", null, "אין התראות חדשות.")), myNotifs.slice(0, 25).map((n) => /* @__PURE__ */ React.createElement("div", { key: n.id, className: `bell-item ${n.read ? "" : "unread"}` }, /* @__PURE__ */ React.createElement("strong", null, n.title), /* @__PURE__ */ React.createElement("span", null, n.body), /* @__PURE__ */ React.createElement("div", { className: "row", style: { justifyContent: "space-between", marginTop: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10 } }, fmtDT(n.at)), n.requiresAck && (n.acked ? /* @__PURE__ */ React.createElement("span", { className: "ok-tag xs" }, /* @__PURE__ */ React.createElement(Check, { size: 11 }), " הקבלה אושרה") : /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => ackNotification(n.id) }, "אישור קבלה")))))))), /* @__PURE__ */ React.createElement("div", { className: "user-chip" }, /* @__PURE__ */ React.createElement(UserCheck, { size: 14 }), " ", currentUser.displayName, /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setPwdOpen((v) => !v) }, "סיסמה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => {
       auth.signOut();
       setBellOpen(false);
-    } }, "התנתקות")))), pwdOpen && /* @__PURE__ */ React.createElement("div", { className: "paper-card no-print", style: { maxWidth: 420, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " שינוי סיסמה"), /* @__PURE__ */ React.createElement("label", { className: "lbl", style: { marginTop: 0 } }, "סיסמה חדשה (לפחות 6 תווים)"), /* @__PURE__ */ React.createElement("input", { type: "password", value: newPwd, onChange: (e) => setNewPwd(e.target.value), dir: "ltr" }), pwdMsg && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", pwdMsg), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-pri", disabled: newPwd.length < 6, onClick: changePassword }, "שמירת הסיסמה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost", onClick: () => {
+    } }, "התנתקות")))), newAccount && /* @__PURE__ */ React.createElement("div", { className: "paper-card no-print", style: { maxWidth: 520, marginBottom: 16, borderColor: "var(--pri)" } }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(UserCheck, { size: 16 }), " פרטי התחברות ל", newAccount.name), /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " זו הפעם היחידה שהסיסמה מוצגת. העתק אותה ומסור אותה למורה לפני הסגירה."), /* @__PURE__ */ React.createElement("div", { className: "rows" }, /* @__PURE__ */ React.createElement("div", { className: "d-row" }, /* @__PURE__ */ React.createElement("span", { className: "d-key" }, "שם משתמש"), /* @__PURE__ */ React.createElement("span", { dir: "ltr" }, newAccount.email)), /* @__PURE__ */ React.createElement("div", { className: "d-row" }, /* @__PURE__ */ React.createElement("span", { className: "d-key" }, "סיסמה"), /* @__PURE__ */ React.createElement("strong", { dir: "ltr", style: { fontSize: 16, letterSpacing: ".06em" } }, newAccount.password))), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-sec", onClick: () => { const txt = "שם משתמש: " + newAccount.email + "\nסיסמה: " + newAccount.password; if (navigator.clipboard) navigator.clipboard.writeText(txt); toast("הפרטים הועתקו."); } }, "העתקת הפרטים"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost", onClick: () => setNewAccount(null) }, "סגירה"))), pwdOpen && /* @__PURE__ */ React.createElement("div", { className: "paper-card no-print", style: { maxWidth: 420, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " שינוי סיסמה"), /* @__PURE__ */ React.createElement("label", { className: "lbl", style: { marginTop: 0 } }, "סיסמה חדשה (לפחות 6 תווים)"), /* @__PURE__ */ React.createElement("input", { type: "password", value: newPwd, onChange: (e) => setNewPwd(e.target.value), dir: "ltr" }), pwdMsg && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", pwdMsg), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-pri", disabled: newPwd.length < 6, onClick: changePassword }, "שמירת הסיסמה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost", onClick: () => {
       setPwdOpen(false);
       setNewPwd("");
       setPwdMsg("");
@@ -2408,6 +2533,8 @@ ${q}`
     ), role === "substitute" && myTeacher && /* @__PURE__ */ React.createElement(SubstituteView, { me: myTeacher, teachers, requests, onRespond: subRespond }), role === "management" && /* @__PURE__ */ React.createElement(
       ManagementView,
       {
+        saveAlertEmailsUI,
+        cleanDemoData,
         requests,
         teachers,
         audit,
