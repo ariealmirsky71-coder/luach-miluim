@@ -60,7 +60,7 @@
 
 <script>
 (() => {
-  const { useState, useMemo, useEffect } = React;
+  const { useState, useMemo, useEffect, useRef } = React;
   const firebaseConfig = {
     apiKey: "AIzaSyAI0xoCy0hRiVw5d-t7004YG1843f8ky80",
     authDomain: "software-c3e9d.firebaseapp.com",
@@ -169,6 +169,14 @@
     }
     return out;
   }
+  /** הופך ערך לתא CSV בטוח: נועל נוסחאות (הגנה מפני CSV Injection) ובורח מפסיקים/גרשיים */
+  function csvCell(val) {
+    let s = val === null || val === undefined ? "" : String(val);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
   function sched(rows) {
     const o = {};
     DAYS.forEach((d, i) => o[d] = parseRow(rows[i] || ""));
@@ -510,6 +518,7 @@
     const [notes, setNotes] = useState("");
     const [attachmentName, setAttachmentName] = useState("");
     const [attachFileId, setAttachFileId] = useState("");
+    const [formSubmitting, setFormSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [upErr, setUpErr] = useState("");
     const preview = useMemo(() => buildSlots("preview", teacher, dates, dayType, periods), [teacher, dates, dayType, periods]);
@@ -523,6 +532,7 @@
       const day = teacher.schedule[dn] || [];
       return !day.some((c) => c.type === "lesson" || c.type === "yard");
     });
+    const pastDates = dates.filter((d) => d < toISO(new Date()));
     const conflicts = dates.map((d) => {
       const hit = (existingRequests || []).find((r) => r.dates.includes(d));
       return hit ? { date: d, status: REQ_STATUS[hit.status].label } : null;
@@ -564,16 +574,20 @@
     } })), attachmentName && /* @__PURE__ */ React.createElement("span", { className: "file-chip" }, /* @__PURE__ */ React.createElement(FileLink, { fileId: attachFileId, name: attachmentName }), /* @__PURE__ */ React.createElement("button", { type: "button", title: "הסרת הקובץ", onClick: () => {
       setAttachmentName("");
       setAttachFileId("");
-    } }, /* @__PURE__ */ React.createElement(X, { size: 12 })))), upErr && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", upErr), missingDoc && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " לסיבה שנבחרה נהוג לצרף אישור, אבל זו לא חובה — אפשר לשלוח גם בלי, והמנהל/ת יבקש/תבקש השלמה אם צריך."), noSchoolDates.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " בתאריך ", noSchoolDates.map(fmtDate).join(", "), " אין לך שיעורים או תורנויות (יום חופשי או סוף שבוע), ולכן לא יידרש מילוי מקום. אפשר לשלוח בכל זאת אם ההיעדרות צריכה להירשם."), conflicts.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " כבר קיימת בקשה לתאריך ", conflicts.map((c) => `${fmtDate(c.date)} (${c.status})`).join(", "), ". אפשר להמשיך, אך כדאי לוודא שאין כפילות."), dates.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "muted xs", style: { marginTop: 14 } }, "כדי לשלוח, יש לבחור לפחות תאריך היעדרות אחד למעלה."), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", disabled: dates.length === 0, onClick: () => {
-      onSubmit({ dates, dayType, periods: dayType === "full" ? [] : periods, reason, reasonOther, notes, attachmentName, attachmentFileId: attachFileId });
-      setDates([]);
-      setPeriods([]);
-      setNotes("");
-      setAttachmentName("");
-      setAttachFileId("");
-      setDayType("full");
-      setReason("illness");
-    } }, /* @__PURE__ */ React.createElement(Send, { size: 15 }), " שליחת הבקשה לאישור מנהל/ת")), /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Info, { size: 16 }), " מה יושפע מההיעדרות"), dates.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "muted" }, "בחרו תאריך, והמערכת תזהה בעצמה מתוך מערכת השעות שלכם אילו שיעורים, כיתות ותורנויות חצר יידרשו למילוי מקום.") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "kpis" }, /* @__PURE__ */ React.createElement(Kpi, { value: lessons, label: "שעות הוראה" }), /* @__PURE__ */ React.createElement(Kpi, { value: yards, label: "תורנויות חצר", tone: "amber" }), /* @__PURE__ */ React.createElement(Kpi, { value: dates.length, label: "ימי היעדרות" })), dates.map((d) => {
+    } }, /* @__PURE__ */ React.createElement(X, { size: 12 })))), upErr && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", upErr), missingDoc && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " לסיבה שנבחרה נהוג לצרף אישור, אבל זו לא חובה — אפשר לשלוח גם בלי, והמנהל/ת יבקש/תבקש השלמה אם צריך."), noSchoolDates.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " בתאריך ", noSchoolDates.map(fmtDate).join(", "), " אין לך שיעורים או תורנויות (יום חופשי או סוף שבוע), ולכן לא יידרש מילוי מקום. אפשר לשלוח בכל זאת אם ההיעדרות צריכה להירשם."), pastDates.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " התאריך ", pastDates.map(fmtDate).join(", "), " כבר עבר. אם זה נכון (למשל דיווח באיחור) אפשר להמשיך; אם זו טעות בבחירת התאריך, כדאי לתקן."), conflicts.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " כבר קיימת בקשה לתאריך ", conflicts.map((c) => `${fmtDate(c.date)} (${c.status})`).join(", "), ". אפשר להמשיך, אך כדאי לוודא שאין כפילות."), dates.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "muted xs", style: { marginTop: 14 } }, "כדי לשלוח, יש לבחור לפחות תאריך היעדרות אחד למעלה."), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", disabled: dates.length === 0 || formSubmitting, onClick: async () => {
+      setFormSubmitting(true);
+      const ok = await onSubmit({ dates, dayType, periods: dayType === "full" ? [] : periods, reason, reasonOther, notes, attachmentName, attachmentFileId: attachFileId });
+      setFormSubmitting(false);
+      if (ok) {
+        setDates([]);
+        setPeriods([]);
+        setNotes("");
+        setAttachmentName("");
+        setAttachFileId("");
+        setDayType("full");
+        setReason("illness");
+      }
+    } }, /* @__PURE__ */ React.createElement(Send, { size: 15 }), " ", formSubmitting ? "שולח..." : "שליחת הבקשה לאישור מנהל/ת")), /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Info, { size: 16 }), " מה יושפע מההיעדרות"), dates.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "muted" }, "בחרו תאריך, והמערכת תזהה בעצמה מתוך מערכת השעות שלכם אילו שיעורים, כיתות ותורנויות חצר יידרשו למילוי מקום.") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "kpis" }, /* @__PURE__ */ React.createElement(Kpi, { value: lessons, label: "שעות הוראה" }), /* @__PURE__ */ React.createElement(Kpi, { value: yards, label: "תורנויות חצר", tone: "amber" }), /* @__PURE__ */ React.createElement(Kpi, { value: dates.length, label: "ימי היעדרות" })), dates.map((d) => {
       const items = preview.filter((s) => s.date === d);
       return /* @__PURE__ */ React.createElement("div", { key: d, className: "day-block" }, /* @__PURE__ */ React.createElement("div", { className: "day-head" }, fmtDate(d), " ", dayNameOf(d) ? `· יום ${dayNameOf(d)}` : "· אין לימודים"), items.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "muted xs" }, "אין שיעורים בטווח שנבחר."), items.map((s) => /* @__PURE__ */ React.createElement(SlotLine, { key: s.id, slot: s, teachers: [], right: /* @__PURE__ */ React.createElement("span", { className: "sl-room" }, s.room) })));
     }))));
@@ -831,7 +845,7 @@ ${note}`)) return;
         const sub = teachers.find((t) => t.id === slot.subId);
         const open = openSlot === slot.id;
         const cands = open ? rankCandidates(teachers, requests, slot, request.teacherId) : [];
-        return /* @__PURE__ */ React.createElement("div", { key: slot.id, className: "assign-slot", style: { borderInlineStartColor: SLOT_STATUS[slot.assignStatus].color } }, /* @__PURE__ */ React.createElement("div", { className: "as-head" }, /* @__PURE__ */ React.createElement("div", { className: "as-info" }, /* @__PURE__ */ React.createElement("span", { className: "sl-period" }, fmtShort(slot.date), " · שעה ", slot.period), /* @__PURE__ */ React.createElement("span", { className: "sl-time" }, slot.time), /* @__PURE__ */ React.createElement("span", { className: "sl-what" }, slot.type === "lesson" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(BookOpen, { size: 12 }), " ", slot.subject, " · ", slot.cls) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(TreePine, { size: 12 }), " תורנות חצר")), /* @__PURE__ */ React.createElement("span", { className: "sl-room" }, slot.room), slot.type === "lesson" && (slot.materials ? /* @__PURE__ */ React.createElement(FileLink, { fileId: slot.materials.fileId, name: slot.materials.name, small: true }) : /* @__PURE__ */ React.createElement("span", { className: "warn-tag xs" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 11 }), " אין חומרים"))), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, sub && /* @__PURE__ */ React.createElement("span", { className: "sub-tag" }, /* @__PURE__ */ React.createElement(UserCheck, { size: 12 }), " ", sub.name), slot.subNote && /* @__PURE__ */ React.createElement("span", { className: "tag bad", title: slot.subNote }, /* @__PURE__ */ React.createElement(Info, { size: 10 }), " שאלה ממתינה"), /* @__PURE__ */ React.createElement(SlotStamp, { status: slot.assignStatus, small: true }))), slot.subNote && /* @__PURE__ */ React.createElement("div", { className: "note-box", style: { margin: "8px 0" } }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " ", /* @__PURE__ */ React.createElement("strong", null, ((_a = teachers.find((t) => t.id === slot.subId)) == null ? void 0 : _a.name) || "ממלא/ת מקום", " שואל/ת:"), " ", slot.subNote), /* @__PURE__ */ React.createElement("div", { className: "row gap wrap as-actions" }, ["unassigned", "declined"].includes(slot.assignStatus) && /* @__PURE__ */ React.createElement("button", { className: "btn-pri xs-btn", onClick: () => setOpenSlot(open ? null : slot.id) }, /* @__PURE__ */ React.createElement(Search, { size: 12 }), " ", open ? "סגירה" : "איתור ממלא מקום"), ["sent", "accepted", "changed"].includes(slot.assignStatus) && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "btn-sec xs-btn", onClick: () => setOpenSlot(open ? null : slot.id) }, /* @__PURE__ */ React.createElement(RefreshCw, { size: 12 }), " החלפת ממלא מקום"), /* @__PURE__ */ React.createElement("button", { className: "btn-danger xs-btn", onClick: () => onCancelSlot(request.id, slot.id) }, /* @__PURE__ */ React.createElement(Ban, { size: 12 }), " ביטול השיבוץ"))), open && /* @__PURE__ */ React.createElement("div", { className: "cand-list" }, cands.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "muted xs" }, "אין ממלאי מקום מוגדרים במאגר."), cands.map((c) => /* @__PURE__ */ React.createElement("div", { key: c.teacher.id, className: `cand ${c.busy || c.conflict ? "blocked" : ""}` }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cand-name" }, c.teacher.name, " ", /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, "· ", c.teacher.subject)), /* @__PURE__ */ React.createElement("div", { className: "cand-tags" }, c.busy && /* @__PURE__ */ React.createElement("span", { className: "tag bad" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 10 }), " מלמד/ת באותה שעה"), c.conflict && /* @__PURE__ */ React.createElement("span", { className: "tag bad" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 10 }), " כבר משובץ/ת באותה שעה"), c.tags.map((t, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: `tag ${t.good ? "good" : "soft"}` }, t.t)))), /* @__PURE__ */ React.createElement(
+        return /* @__PURE__ */ React.createElement("div", { key: slot.id, className: "assign-slot", style: { borderInlineStartColor: SLOT_STATUS[slot.assignStatus].color } }, /* @__PURE__ */ React.createElement("div", { className: "as-head" }, /* @__PURE__ */ React.createElement("div", { className: "as-info" }, /* @__PURE__ */ React.createElement("span", { className: "sl-period" }, fmtShort(slot.date), " · שעה ", slot.period), /* @__PURE__ */ React.createElement("span", { className: "sl-time" }, slot.time), /* @__PURE__ */ React.createElement("span", { className: "sl-what" }, slot.type === "lesson" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(BookOpen, { size: 12 }), " ", slot.subject, " · ", slot.cls) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(TreePine, { size: 12 }), " תורנות חצר")), /* @__PURE__ */ React.createElement("span", { className: "sl-room" }, slot.room), slot.type === "lesson" && (slot.materials ? /* @__PURE__ */ React.createElement(FileLink, { fileId: slot.materials.fileId, name: slot.materials.name, small: true }) : /* @__PURE__ */ React.createElement("span", { className: "warn-tag xs" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 11 }), " אין חומרים"))), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, sub && /* @__PURE__ */ React.createElement("span", { className: "sub-tag" }, /* @__PURE__ */ React.createElement(UserCheck, { size: 12 }), " ", sub.name), slot.subNote && /* @__PURE__ */ React.createElement("span", { className: "tag bad", title: slot.subNote }, /* @__PURE__ */ React.createElement(Info, { size: 10 }), " שאלה ממתינה"), /* @__PURE__ */ React.createElement(SlotStamp, { status: slot.assignStatus, small: true }))), slot.subNote && /* @__PURE__ */ React.createElement("div", { className: "note-box", style: { margin: "8px 0" } }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " ", /* @__PURE__ */ React.createElement("strong", null, ((_a = teachers.find((t) => t.id === slot.subId)) == null ? void 0 : _a.name) || "ממלא/ת מקום", " שואל/ת:"), " ", slot.subNote), /* @__PURE__ */ React.createElement("div", { className: "row gap wrap as-actions" }, ["unassigned", "declined"].includes(slot.assignStatus) && /* @__PURE__ */ React.createElement("button", { className: "btn-pri xs-btn", onClick: () => setOpenSlot(open ? null : slot.id) }, /* @__PURE__ */ React.createElement(Search, { size: 12 }), " ", open ? "סגירה" : "איתור ממלא מקום"), ["sent", "accepted", "changed"].includes(slot.assignStatus) && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "btn-sec xs-btn", onClick: () => setOpenSlot(open ? null : slot.id) }, /* @__PURE__ */ React.createElement(RefreshCw, { size: 12 }), " החלפת ממלא מקום"), /* @__PURE__ */ React.createElement("button", { className: "btn-danger xs-btn", onClick: () => onCancelSlot(request.id, slot.id) }, /* @__PURE__ */ React.createElement(Ban, { size: 12 }), " ביטול השיבוץ"))), open && /* @__PURE__ */ React.createElement("div", { className: "cand-list" }, cands.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "muted xs" }, "אין ממלאי מקום מוגדרים במאגר."), cands.length > 0 && cands.every((c) => c.busy || c.conflict) && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " כל ממלאי המקום עסוקים בשעה הזו. אפשר לפרסם קריאה פתוחה ליום כולו, או לבדוק שיבוץ ידני מחוץ לרשימה."), cands.map((c) => /* @__PURE__ */ React.createElement("div", { key: c.teacher.id, className: `cand ${c.busy || c.conflict ? "blocked" : ""}` }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cand-name" }, c.teacher.name, " ", /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, "· ", c.teacher.subject)), /* @__PURE__ */ React.createElement("div", { className: "cand-tags" }, c.busy && /* @__PURE__ */ React.createElement("span", { className: "tag bad" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 10 }), " מלמד/ת באותה שעה"), c.conflict && /* @__PURE__ */ React.createElement("span", { className: "tag bad" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 10 }), " כבר משובץ/ת באותה שעה"), c.tags.map((t, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: `tag ${t.good ? "good" : "soft"}` }, t.t)))), /* @__PURE__ */ React.createElement(
           "button",
           {
             className: "btn-pri xs-btn",
@@ -857,10 +871,11 @@ ${note}`)) return;
   }
   function BoardView({ requests, teachers }) {
     const [week, setWeek] = useState(weekStartOf(toISO(/* @__PURE__ */ new Date())));
-    const days = Array.from({ length: 5 }, (_, i) => addDays(week, i));
+    const days = Array.from({ length: DAYS.length }, (_, i) => addDays(week, i));
     const all = [];
     requests.filter(isLive).forEach((r) => (r.slots || []).forEach((s) => all.push({ ...s, req: r })));
-    return /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("div", { className: "board-top" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title", style: { margin: 0 } }, /* @__PURE__ */ React.createElement(LayoutGrid, { size: 16 }), " לוח שיבוצים שבועי"), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setWeek(addDays(week, -7)) }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 14 }), " שבוע קודם"), /* @__PURE__ */ React.createElement("span", { className: "week-label" }, fmtDate(days[0]), " – ", fmtDate(days[4])), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setWeek(addDays(week, 7)) }, "שבוע הבא ", /* @__PURE__ */ React.createElement(ChevronLeft, { size: 14 })))), /* @__PURE__ */ React.createElement("div", { className: "legend" }, Object.entries(SLOT_STATUS).filter(([k]) => k !== "changed").map(([k, v]) => /* @__PURE__ */ React.createElement("span", { key: k, className: "lg" }, /* @__PURE__ */ React.createElement("i", { style: { background: v.color } }), " ", v.label))), /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "grid-table board" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "corner" }, "שעה"), days.map((d, i) => /* @__PURE__ */ React.createElement("th", { key: d }, DAYS[i], /* @__PURE__ */ React.createElement("span", { className: "th-date" }, fmtShort(d)))))), /* @__PURE__ */ React.createElement("tbody", null, PERIOD_TIMES.map((time, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { className: "period-label" }, /* @__PURE__ */ React.createElement("span", { className: "period-num" }, i + 1), /* @__PURE__ */ React.createElement("span", { className: "period-time" }, time)), days.map((date) => {
+    const weekHasData = all.some((s) => days.includes(s.date));
+    return /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("div", { className: "board-top" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title", style: { margin: 0 } }, /* @__PURE__ */ React.createElement(LayoutGrid, { size: 16 }), " לוח שיבוצים שבועי"), /* @__PURE__ */ React.createElement("div", { className: "row gap" }, /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setWeek(addDays(week, -7)) }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 14 }), " שבוע קודם"), /* @__PURE__ */ React.createElement("span", { className: "week-label" }, fmtDate(days[0]), " – ", fmtDate(days[days.length - 1])), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setWeek(addDays(week, 7)) }, "שבוע הבא ", /* @__PURE__ */ React.createElement(ChevronLeft, { size: 14 })))), !weekHasData && /* @__PURE__ */ React.createElement("div", { className: "note-box", style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " אין היעדרויות מאושרות בשבוע הזה — הלוח שלמטה ריק בכוונה. אפשר לנווט לשבוע אחר עם החצים למעלה."), /* @__PURE__ */ React.createElement("div", { className: "legend" }, Object.entries(SLOT_STATUS).filter(([k]) => k !== "changed").map(([k, v]) => /* @__PURE__ */ React.createElement("span", { key: k, className: "lg" }, /* @__PURE__ */ React.createElement("i", { style: { background: v.color } }), " ", v.label))), /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "grid-table board" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "corner" }, "שעה"), days.map((d, i) => /* @__PURE__ */ React.createElement("th", { key: d, className: d === toISO(/* @__PURE__ */ new Date()) ? "today-col" : "" }, DAYS[i], /* @__PURE__ */ React.createElement("span", { className: "th-date" }, fmtShort(d)))))), /* @__PURE__ */ React.createElement("tbody", null, PERIOD_TIMES.map((time, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { className: "period-label" }, /* @__PURE__ */ React.createElement("span", { className: "period-num" }, i + 1), /* @__PURE__ */ React.createElement("span", { className: "period-time" }, time)), days.map((date) => {
       const items = all.filter((s) => s.date === date && s.period === i + 1);
       return /* @__PURE__ */ React.createElement("td", { key: date, className: "board-cell" }, items.map((s) => {
         const absent = teachers.find((t) => t.id === s.req.teacherId);
@@ -1010,9 +1025,9 @@ ${note}`)) return;
           (sub == null ? void 0 : sub.name) || "—",
           SLOT_STATUS[s.assignStatus].label,
           s.materials ? s.materials.name : "—"
-        ].join(",");
+        ].map(csvCell).join(",");
       });
-      const csv = "\uFEFF" + [head.join(","), ...lines].join("\n");
+      const csv = "\uFEFF" + [head.map(csvCell).join(","), ...lines].join("\n");
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
       const a = document.createElement("a");
       a.href = url;
@@ -1085,6 +1100,7 @@ ${note}`)) return;
     const [tid, setTid] = useState(teachers[0].id);
     const [sel, setSel] = useState(null);
     const [nf, setNf] = useState({ name: "", subject: "", phone: "", email: "", externalSub: false });
+  const [addBusy, setAddBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const t = teachers.find((x) => x.id === tid) || teachers[0];
     return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("div", { className: "subtabs" }, /* @__PURE__ */ React.createElement("button", { className: tab === "sched" ? "on" : "", onClick: () => setTab("sched") }, "מערכות שעות"), /* @__PURE__ */ React.createElement("button", { className: tab === "staff" ? "on" : "", onClick: () => setTab("staff") }, "ניהול צוות"), /* @__PURE__ */ React.createElement("button", { className: tab === "audit" ? "on" : "", onClick: () => setTab("audit") }, "יומן פעילות"), /* @__PURE__ */ React.createElement("button", { className: tab === "settings" ? "on" : "", onClick: () => setTab("settings") }, "הגדרות"))), tab === "sched" && /* @__PURE__ */ React.createElement("div", { className: "split-3-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "chips" }, teachers.map((x) => /* @__PURE__ */ React.createElement("button", { key: x.id, className: `chip ${x.id === tid ? "on" : ""}`, onClick: () => {
@@ -1106,10 +1122,12 @@ ${note}`)) return;
     ) : /* @__PURE__ */ React.createElement(Empty, null, "בחרו משבצת בלוח כדי להגדיר מקצוע, כיתה, שעת שהייה או תורנות חצר."))), tab === "staff" && /* @__PURE__ */ React.createElement("div", { className: "split-3-2" }, /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Users, { size: 16 }), " צוות בית הספר"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "אפשר לערוך כל שדה ישירות בטבלה. השינוי נשמר אוטומטית."), /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "data-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "שם"), /* @__PURE__ */ React.createElement("th", null, "מקצוע"), /* @__PURE__ */ React.createElement("th", null, "טלפון"), /* @__PURE__ */ React.createElement("th", null, "דוא״ל (שם משתמש)"), /* @__PURE__ */ React.createElement("th", null, "הערה"), /* @__PURE__ */ React.createElement("th", null))), /* @__PURE__ */ React.createElement("tbody", null, teachers.map((x) => /* @__PURE__ */ React.createElement("tr", { key: x.id }, /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("input", { className: "mini-input", value: x.name, onChange: (e) => onUpdateTeacher(x.id, { name: e.target.value }) })), /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("input", { className: "mini-input", value: x.subject, onChange: (e) => onUpdateTeacher(x.id, { subject: e.target.value }) })), /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("input", { className: "mini-input", dir: "ltr", value: x.phone, onChange: (e) => onUpdateTeacher(x.id, { phone: e.target.value }) })), /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("input", { className: "mini-input", dir: "ltr", value: x.email, onChange: (e) => onUpdateTeacher(x.id, { email: e.target.value }) })), /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("input", { className: "mini-input", value: x.note, placeholder: "הערה", onChange: (e) => onUpdateTeacher(x.id, { note: e.target.value }) })), /* @__PURE__ */ React.createElement("td", null, confirmDelete === x.id ? /* @__PURE__ */ React.createElement("span", { className: "row gap", style: { flexWrap: "nowrap" } }, /* @__PURE__ */ React.createElement("button", { className: "btn-danger xs-btn", onClick: () => {
       onDeleteTeacher(x.id);
       setConfirmDelete(null);
-    } }, "מחיקה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setConfirmDelete(null) }, "ביטול")) : /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", title: "הסרת המורה", onClick: () => setConfirmDelete(x.id) }, /* @__PURE__ */ React.createElement(X, { size: 12 })))))))), /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " שינוי כתובת הדוא״ל בטבלה משנה את כתובת ההתראות, אבל ", /* @__PURE__ */ React.createElement("strong", null, "לא"), " את שם המשתמש להתחברות. שינוי שם משתמש נעשה ב-Firebase, תחת Authentication.")), /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }), " הוספת מורה"), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "שם מלא"), /* @__PURE__ */ React.createElement("input", { value: nf.name, onChange: (e) => setNf({ ...nf, name: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "מקצוע עיקרי"), /* @__PURE__ */ React.createElement("input", { value: nf.subject, onChange: (e) => setNf({ ...nf, subject: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "טלפון"), /* @__PURE__ */ React.createElement("input", { value: nf.phone, onChange: (e) => setNf({ ...nf, phone: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "דוא״ל (ישמש גם כשם משתמש)"), /* @__PURE__ */ React.createElement("input", { value: nf.email, onChange: (e) => setNf({ ...nf, email: e.target.value }), placeholder: "name@school.org.il", dir: "ltr" }), /* @__PURE__ */ React.createElement("label", { className: "p-check", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: nf.externalSub, onChange: (e) => setNf({ ...nf, externalSub: e.target.checked }) }), "ממלא/ת מקום חיצוני/ת (לא מורה קבוע/ה בבית הספר)"), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", disabled: !nf.name.trim(), onClick: () => {
-      onAddTeacher(nf);
-      setNf({ name: "", subject: "", phone: "", email: "", externalSub: false });
-    } }, /* @__PURE__ */ React.createElement(Plus, { size: 14 }), " הוספה למערכת"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "נוצרת אוטומטית התחברות עם הדוא״ל שהוזן וסיסמה אקראית, שתוצג פעם אחת בלבד לאחר ההוספה — יש להעתיק אותה ולמסור למורה. ממלא/ת מקום חיצוני/ת יראה/תראה רק את מסך השיבוצים שלו/ה, בלי הגשת היעדרויות."))), tab === "audit" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " יומן פעילות"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "כל פעולה במערכת נרשמת עם שם המשתמש, התאריך והשעה."), /* @__PURE__ */ React.createElement("div", { className: "timeline" }, audit.map((a, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "tl-row" }, /* @__PURE__ */ React.createElement("span", { className: "tl-dot" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, a.action), /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, " · ", a.actor, " · ", fmtDT(a.at)))))), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsPanel, { onSaveEmails: saveAlertEmailsUI, onCleanDemo: cleanDemoData })));
+    } }, "מחיקה"), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", onClick: () => setConfirmDelete(null) }, "ביטול")) : /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", title: "הסרת המורה", onClick: () => setConfirmDelete(x.id) }, /* @__PURE__ */ React.createElement(X, { size: 12 })))))))), /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " שינוי כתובת הדוא״ל בטבלה משנה את כתובת ההתראות, אבל ", /* @__PURE__ */ React.createElement("strong", null, "לא"), " את שם המשתמש להתחברות. שינוי שם משתמש נעשה ב-Firebase, תחת Authentication.")), /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }), " הוספת מורה"), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "שם מלא"), /* @__PURE__ */ React.createElement("input", { value: nf.name, onChange: (e) => setNf({ ...nf, name: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "מקצוע עיקרי"), /* @__PURE__ */ React.createElement("input", { value: nf.subject, onChange: (e) => setNf({ ...nf, subject: e.target.value }) }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "טלפון"), /* @__PURE__ */ React.createElement("input", { type: "tel", value: nf.phone, dir: "ltr", placeholder: "050-1234567", onChange: (e) => setNf({ ...nf, phone: e.target.value }) }), nf.phone.trim() && normalizePhone(nf.phone).length < 11 && /* @__PURE__ */ React.createElement("p", { className: "muted xs", style: { marginTop: -6, marginBottom: 10, color: "var(--amber)" } }, "המספר קצר מהרגיל — כפתורי וואטסאפ/SMS לא יעבדו נכון עם מספר לא תקין."), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "דוא״ל (ישמש גם כשם משתמש)"), /* @__PURE__ */ React.createElement("input", { value: nf.email, onChange: (e) => setNf({ ...nf, email: e.target.value }), placeholder: "name@school.org.il", dir: "ltr" }), /* @__PURE__ */ React.createElement("label", { className: "p-check", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: nf.externalSub, onChange: (e) => setNf({ ...nf, externalSub: e.target.checked }) }), "ממלא/ת מקום חיצוני/ת (לא מורה קבוע/ה בבית הספר)"), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", disabled: !nf.name.trim() || addBusy, onClick: async () => {
+      setAddBusy(true);
+      const ok = await onAddTeacher(nf);
+      setAddBusy(false);
+      if (ok) setNf({ name: "", subject: "", phone: "", email: "", externalSub: false });
+    } }, /* @__PURE__ */ React.createElement(Plus, { size: 14 }), " ", addBusy ? "מוסיף..." : "הוספה למערכת"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "נוצרת אוטומטית התחברות עם הדוא״ל שהוזן וסיסמה אקראית, שתוצג פעם אחת בלבד לאחר ההוספה — יש להעתיק אותה ולמסור למורה. ממלא/ת מקום חיצוני/ת יראה/תראה רק את מסך השיבוצים שלו/ה, בלי הגשת היעדרויות."))), tab === "audit" && /* @__PURE__ */ React.createElement("div", { className: "paper-card" }, /* @__PURE__ */ React.createElement("h3", { className: "sec-title" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 16 }), " יומן פעילות"), /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "כל פעולה במערכת נרשמת עם שם המשתמש, התאריך והשעה."), /* @__PURE__ */ React.createElement("div", { className: "timeline" }, audit.map((a, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "tl-row" }, /* @__PURE__ */ React.createElement("span", { className: "tl-dot" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, a.action), /* @__PURE__ */ React.createElement("span", { className: "muted xs" }, " · ", a.actor, " · ", fmtDT(a.at)))))), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsPanel, { onSaveEmails: saveAlertEmailsUI, onCleanDemo: cleanDemoData })));
   }
   function TodayView({ requests, teachers, onGoAssign }) {
     const [offset, setOffset] = useState(0);
@@ -1176,6 +1194,24 @@ ${note}`)) return;
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
     const [showDemo, setShowDemo] = useState(false);
+    const [resetMode, setResetMode] = useState(false);
+    const [resetMsg, setResetMsg] = useState("");
+    const [resetBusy, setResetBusy] = useState(false);
+    async function sendReset() {
+      setResetMsg(""); setError("");
+      if (!username.trim() || !username.includes("@")) {
+        setResetMsg("יש להזין כתובת דוא\"ל תקינה בשדה שם המשתמש למעלה, ואז ללחוץ שוב.");
+        return;
+      }
+      setResetBusy(true);
+      try {
+        await auth.sendPasswordResetEmail(username.trim());
+        setResetMsg("אם הכתובת קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס הסיסמה. יש לבדוק גם בתיקיית הספאם.");
+      } catch (err) {
+        setResetMsg("אם הכתובת קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס הסיסמה. יש לבדוק גם בתיקיית הספאם.");
+      }
+      setResetBusy(false);
+    }
     async function submit(e) {
       e.preventDefault();
       setError("");
@@ -1193,7 +1229,7 @@ ${note}`)) return;
       }
       setBusy(false);
     }
-    return /* @__PURE__ */ React.createElement("div", { className: "login-wrap" }, /* @__PURE__ */ React.createElement("div", { className: "paper-card login-card" }, /* @__PURE__ */ React.createElement("div", { className: "brand", style: { justifyContent: "center", marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { className: "emblem" }, /* @__PURE__ */ React.createElement(School, { size: 22 })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { style: { fontSize: 21 } }, "לוח מילואי מקום"), /* @__PURE__ */ React.createElement("p", null, "כניסה למערכת ניהול היעדרויות ומילוי מקום"))), /* @__PURE__ */ React.createElement("form", { onSubmit: submit }, /* @__PURE__ */ React.createElement("label", { className: "lbl", style: { marginTop: 0 } }, "שם משתמש (דוא״ל)"), /* @__PURE__ */ React.createElement("input", { value: username, onChange: (e) => setUsername(e.target.value), placeholder: "name@school.org.il", dir: "ltr" }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "סיסמה"), /* @__PURE__ */ React.createElement("input", { type: "password", value: password, onChange: (e) => setPassword(e.target.value), placeholder: "••••••", dir: "ltr" }), error && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", error), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", type: "submit", disabled: busy }, /* @__PURE__ */ React.createElement(UserCheck, { size: 15 }), " ", busy ? "מתחבר/ת..." : "כניסה למערכת")), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", style: { marginTop: 14 }, onClick: () => setShowDemo((s) => !s) }, showDemo ? "הסתרת פרטי התחברות להדגמה" : "הצגת פרטי התחברות להדגמה"), showDemo && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "data-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "שם משתמש"), /* @__PURE__ */ React.createElement("th", null, "תפקיד"))), /* @__PURE__ */ React.createElement("tbody", null, DEMO_LOGIN_HINTS.map((u) => /* @__PURE__ */ React.createElement("tr", { key: u.email }, /* @__PURE__ */ React.createElement("td", { dir: "ltr", className: "ltr-cell" }, u.email), /* @__PURE__ */ React.createElement("td", null, u.label)))))), /* @__PURE__ */ React.createElement("p", { className: "muted xs", style: { marginTop: 8 } }, "הסיסמה לכל המשתמשים בהדגמה היא ", /* @__PURE__ */ React.createElement("strong", { dir: "ltr" }, DEMO_PASSWORD), ". מומלץ שכל מורה יחליף אותה בהמשך."))));
+    return /* @__PURE__ */ React.createElement("div", { className: "login-wrap" }, /* @__PURE__ */ React.createElement("div", { className: "paper-card login-card" }, /* @__PURE__ */ React.createElement("div", { className: "brand", style: { justifyContent: "center", marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { className: "emblem" }, /* @__PURE__ */ React.createElement(School, { size: 22 })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { style: { fontSize: 21 } }, "לוח מילואי מקום"), /* @__PURE__ */ React.createElement("p", null, "כניסה למערכת ניהול היעדרויות ומילוי מקום"))), /* @__PURE__ */ React.createElement("form", { onSubmit: submit }, /* @__PURE__ */ React.createElement("label", { className: "lbl", style: { marginTop: 0 } }, "שם משתמש (דוא״ל)"), /* @__PURE__ */ React.createElement("input", { value: username, onChange: (e) => setUsername(e.target.value), placeholder: "name@school.org.il", dir: "ltr" }), /* @__PURE__ */ React.createElement("label", { className: "lbl" }, "סיסמה"), /* @__PURE__ */ React.createElement("input", { type: "password", value: password, onChange: (e) => setPassword(e.target.value), placeholder: "••••••", dir: "ltr" }), error && /* @__PURE__ */ React.createElement("div", { className: "warn-box" }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14 }), " ", error), /* @__PURE__ */ React.createElement("button", { className: "btn-pri wide", type: "submit", disabled: busy }, /* @__PURE__ */ React.createElement(UserCheck, { size: 15 }), " ", busy ? "מתחבר/ת..." : "כניסה למערכת")), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", style: { marginTop: 10, width: "100%" }, onClick: () => { setResetMode((v) => !v); setResetMsg(""); } }, resetMode ? "חזרה להתחברות" : "שכחתי סיסמה"), resetMode && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("p", { className: "muted xs" }, "יש להזין את כתובת הדוא\"ל בשדה \"שם משתמש\" למעלה, ואז ללחוץ כאן."), /* @__PURE__ */ React.createElement("button", { className: "btn-sec wide", disabled: resetBusy, onClick: sendReset }, resetBusy ? "שולח..." : "שליחת קישור לאיפוס סיסמה"), resetMsg && /* @__PURE__ */ React.createElement("div", { className: "note-box", style: { marginTop: 8 } }, /* @__PURE__ */ React.createElement(Info, { size: 14 }), " ", resetMsg)), /* @__PURE__ */ React.createElement("button", { className: "btn-ghost xs-btn", style: { marginTop: 14 }, onClick: () => setShowDemo((s) => !s) }, showDemo ? "הסתרת פרטי התחברות להדגמה" : "הצגת פרטי התחברות להדגמה"), showDemo && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("div", { className: "scroll-x" }, /* @__PURE__ */ React.createElement("table", { className: "data-table" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "שם משתמש"), /* @__PURE__ */ React.createElement("th", null, "תפקיד"))), /* @__PURE__ */ React.createElement("tbody", null, DEMO_LOGIN_HINTS.map((u) => /* @__PURE__ */ React.createElement("tr", { key: u.email }, /* @__PURE__ */ React.createElement("td", { dir: "ltr", className: "ltr-cell" }, u.email), /* @__PURE__ */ React.createElement("td", null, u.label)))))), /* @__PURE__ */ React.createElement("p", { className: "muted xs", style: { marginTop: 8 } }, "הסיסמה לכל המשתמשים בהדגמה היא ", /* @__PURE__ */ React.createElement("strong", { dir: "ltr" }, DEMO_PASSWORD), ". מומלץ שכל מורה יחליף אותה בהמשך."))));
   }
   const VAPID_PUBLIC_KEY = "BGMdSj-CJkSw6AcBnjj80lIldZoLwCG4FBRnYrQ49fY5iF5lefmZoaXnk2ecyjxcFB-f7zZhSJlfKneOJ6QWn0M";
   function urlBase64ToUint8Array(base64String) {
@@ -1536,7 +1572,21 @@ ${lines.join("\n")}
     return a.slice(0, 10);
   }
   function App() {
-    const [booting, setBooting] = useState(true);
+    // מגן מפני לחיצה כפולה על פעולות שכותבות למסד הנתונים (אישור, שיבוץ, מחיקה וכו')
+  const actionLockRef = useRef(false);
+  function withLock(fn) {
+    return async (...args) => {
+      if (actionLockRef.current) return void 0;
+      actionLockRef.current = true;
+      try {
+        return await fn(...args);
+      } finally {
+        setTimeout(() => { actionLockRef.current = false; }, 700);
+      }
+    };
+  }
+
+  const [booting, setBooting] = useState(true);
     const [bootError, setBootError] = useState("");
     const [authUid, setAuthUid] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
@@ -1678,15 +1728,21 @@ ${lines.join("\n")}
       Notification.requestPermission().then((p) => setNotifPerm(p));
     };
     const notify = async (to, title, body, opts) => {
-      await db.collection("notifications").add({
-        at: (/* @__PURE__ */ new Date()).toISOString(),
-        to,
-        title,
-        body,
-        read: false,
-        requiresAck: !!(opts == null ? void 0 : opts.requiresAck),
-        acked: false
-      });
+      // התראה היא תופעת לוואי — כשל כאן לעולם לא אמור לשבור פעולה עסקית שכבר הצליחה (למשל אישור בקשה)
+      try {
+        await db.collection("notifications").add({
+          at: (/* @__PURE__ */ new Date()).toISOString(),
+          to,
+          title,
+          body,
+          read: false,
+          requiresAck: !!(opts == null ? void 0 : opts.requiresAck),
+          acked: false
+        });
+      } catch (e) {
+        console.warn("notification write failed:", e);
+        return;
+      }
       try {
         const uids = /* @__PURE__ */ new Set();
         const tags = to || [];
@@ -1704,17 +1760,27 @@ ${lines.join("\n")}
       }
     };
     const log = async (action) => {
-      await db.collection("audit").add({ at: (/* @__PURE__ */ new Date()).toISOString(), actor: actorName, action });
+      // רישום ביומן הוא תופעת לוואי — כשל כאן לא אמור לשבור פעולה עסקית שכבר הצליחה
+      try {
+        await db.collection("audit").add({ at: (/* @__PURE__ */ new Date()).toISOString(), actor: actorName, action });
+      } catch (e) {
+        console.warn("audit log write failed:", e);
+      }
     };
     const clearMyNotifications = async () => {
       if (!window.confirm(`למחוק את כל ${notifications.length} ההתראות שלך?`)) return;
+      let ok = 0, failed = 0;
       for (const n of notifications) {
         try {
           await db.collection("notifications").doc(n.id).delete();
+          ok++;
         } catch (e) {
+          failed++;
         }
       }
-      toast("ההתראות נוקו.");
+      if (failed === 0) toast(`נמחקו ${ok} התראות.`);
+      else if (ok === 0) toast("לא ניתן היה למחוק את ההתראות — נסה/י שוב, ואם זה חוזר יש לפנות לתמיכה.");
+      else toast(`נמחקו ${ok} התראות. ${failed} לא נמחקו — נסה/י שוב.`);
     };
     const changePassword = async () => {
       setPwdMsg("");
@@ -1734,6 +1800,7 @@ ${lines.join("\n")}
     const patchSlot = async (reqId, slotId, patch, historyEntry) => {
       const req = requests.find((r) => r.id === reqId);
       if (!req) return;
+      if (!req) return;
       const newSlots = req.slots.map((s) => s.id === slotId ? { ...s, ...patch } : s);
       const update = { slots: newSlots };
       if (historyEntry) update.history = [...req.history, historyEntry];
@@ -1745,6 +1812,7 @@ ${lines.join("\n")}
       const teacher = teachers.find((t) => t.id === tId);
       const id = "r-" + uid();
       const slots = buildSlots(id, teacher, draft.dates, draft.dayType, draft.periods);
+      try {
       await db.collection("requests").doc(id).set({
         teacherId: tId,
         submittedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -1780,9 +1848,20 @@ ${draft.notes ? `
 לטיפול בבקשה יש להיכנס למערכת.`
       );
       toast(mail.ok ? "הבקשה נשלחה, והתראה במייל נשלחה למנהל/ת." : "הבקשה נשלחה למנהל/ת וליועץ/ת.");
+      return true;
+      } catch (e) {
+        console.warn("createRequest failed:", e);
+        toast("שגיאה בשליחת הבקשה — ייתכן שאין חיבור לאינטרנט. הפרטים נשארו בטופס, נסה/י שוב.");
+        return false;
+      }
     }
     async function decide(reqId, d) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
+      if (req.status !== "pending") {
+        toast("הבקשה כבר טופלה (כנראה במכשיר או בכרטיסייה אחרת) — הפעולה בוטלה כדי למנוע דריסה.");
+        return;
+      }
       const teacher = teachers.find((t) => t.id === req.teacherId) || { name: "מורה", email: "", id: req.teacherId };
       const label = {
         approved: "הבקשה אושרה במלואה",
@@ -1852,7 +1931,9 @@ ${d.note ? `
       const fileId = typeof saved === "string" ? "" : saved.id;
       await patchSlot(reqId, slotId, { materials: { name: fileName, at: (/* @__PURE__ */ new Date()).toISOString(), fileId } });
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const slot = req.slots.find((s) => s.id === slotId);
+      if (!slot) return;
       const to = ["management"];
       if (slot.subId) to.push(slot.subId);
       await notify(
@@ -1883,6 +1964,7 @@ ${slot.type === "yard" ? "תורנות חצר" : `כיתה: ${slot.cls}
     }
     async function sendBulkSubRequest(reqId, slotIds, candId) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       if (!req || !slotIds.length) return;
       const chosen = req.slots.filter((s) => slotIds.includes(s.id));
       const name = nameOf(candId);
@@ -1961,7 +2043,9 @@ ${live.map((s) => `• שעה ${s.period} ${s.time} — ${s.type === "yard" ? "�
     }
     async function sendSubRequest(reqId, slotId, candId) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const slot = req.slots.find((s) => s.id === slotId);
+      if (!slot) return;
       await patchSlot(reqId, slotId, { subId: candId, assignStatus: "sent", sentAt: (/* @__PURE__ */ new Date()).toISOString(), respondedAt: null });
       await notify(
         [candId],
@@ -1973,7 +2057,9 @@ ${live.map((s) => `• שעה ${s.period} ${s.time} — ${s.type === "yard" ? "�
     }
     async function reassign(reqId, slotId, candId) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const slot = req.slots.find((s) => s.id === slotId);
+      if (!slot) return;
       const prev = slot.subId;
       await patchSlot(
         reqId,
@@ -1992,7 +2078,9 @@ ${live.map((s) => `• שעה ${s.period} ${s.time} — ${s.type === "yard" ? "�
     }
     async function cancelSlot(reqId, slotId) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const slot = req.slots.find((s) => s.id === slotId);
+      if (!slot) return;
       await patchSlot(
         reqId,
         slotId,
@@ -2005,7 +2093,9 @@ ${live.map((s) => `• שעה ${s.period} ${s.time} — ${s.type === "yard" ? "�
     }
     async function subRespond(reqId, slotId, answer, text) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const slot = req.slots.find((s) => s.id === slotId);
+      if (!slot) return;
       const myId = currentUser.teacherId;
       if (answer === "question") {
         const q = (text || "").trim();
@@ -2045,6 +2135,7 @@ ${q}`
     }
     async function cancelAbsence(reqId) {
       const req = requests.find((r) => r.id === reqId);
+      if (!req) return;
       const subs = [...new Set(req.slots.filter((s) => s.subId && s.assignStatus !== "cancelled").map((s) => s.subId))];
       await db.collection("requests").doc(reqId).update({
         status: "cancelled",
@@ -2122,21 +2213,27 @@ ${q}`
         await createLoginAccount(email, f.name, id, f.externalSub ? ["substitute"] : ["teacher"], newPassword);
       } catch (e) {
         toast('שגיאה ביצירת התחברות למורה — ייתכן שהדוא"ל כבר בשימוש.');
-        return;
+        return false;
       }
-      await db.collection("teachers").doc(id).set({
-        name: f.name,
-        subject: f.subject || "כללי",
-        phone: f.phone || "",
-        email,
-        canSub: !!f.externalSub,
-        subjects: f.subject ? [f.subject] : [],
-        grades: ["ד", "ה", "ו"],
-        note: f.externalSub ? "ממלא/ת מקום חיצוני/ת" : "",
-        schedule: blank
-      });
-      await log(`נוסף מורה: ${f.name}`);
-      setNewAccount({ name: f.name, email, password: newPassword });
+      try {
+        await db.collection("teachers").doc(id).set({
+          name: f.name,
+          subject: f.subject || "כללי",
+          phone: f.phone || "",
+          email,
+          canSub: !!f.externalSub,
+          subjects: f.subject ? [f.subject] : [],
+          grades: ["ד", "ה", "ו"],
+          note: f.externalSub ? "ממלא/ת מקום חיצוני/ת" : "",
+          schedule: blank
+        });
+        await log(`נוסף מורה: ${f.name}`);
+        setNewAccount({ name: f.name, email, password: newPassword });
+        return true;
+      } catch (e) {
+        toast("ההתחברות נוצרה, אך שמירת פרטי המורה נכשלה. פנה/י לתמיכה — ייתכן שצריך למחוק את " + email + " ידנית ב-Firebase וליצור מחדש.");
+        return false;
+      }
     };
     const saveAlertEmailsUI = async (list) => {
     await saveAlertEmails(list);
@@ -2163,6 +2260,35 @@ ${q}`
     const deleteTeacher = async (id) => {
       const t = teachers.find((x) => x.id === id);
       if (!t) return;
+
+      // בדיקה: יש בקשות היעדרות פתוחות על שם המורה הזה?
+      const ownRequests = requests.filter((r) => r.teacherId === id && r.status === "pending");
+      // בדיקה: המורה הזה משובץ כממלא/ת מקום פעיל/ה בשעה כלשהי?
+      const activeAsSub = [];
+      requests.filter(isLive).forEach((r) => {
+        (r.slots || []).forEach((s) => {
+          if (s.subId === id && ["sent", "accepted"].includes(s.assignStatus)) {
+            activeAsSub.push(`${fmtDate(s.date)} שעה ${s.period}`);
+          }
+        });
+      });
+
+      if (activeAsSub.length > 0) {
+        const proceed = window.confirm(
+          `⚠️ ${t.name} משובץ/ת כרגע כממלא/ת מקום פעיל/ה ב-${activeAsSub.length} שעות:\n` +
+          activeAsSub.slice(0, 5).join("\n") + (activeAsSub.length > 5 ? `\n...ועוד ${activeAsSub.length - 5}` : "") +
+          `\n\nמחיקה עכשיו תשאיר את השעות האלה מסומנות כ"מכוסות" על ידי מישהו שכבר לא קיים במערכת — ` +
+          `בפועל אף אחד לא יגיע. מומלץ לשבץ מחליף/ה אחר/ת לפני המחיקה.\n\nלמחוק בכל זאת?`
+        );
+        if (!proceed) return;
+      } else if (ownRequests.length > 0) {
+        const proceed = window.confirm(
+          `ל${t.name} יש ${ownRequests.length} בקשות היעדרות שעדיין ממתינות לאישור. ` +
+          `הן יישארו במערכת אחרי המחיקה, אך לא יהיה אפשר לשייך אותן למורה קיים.\n\nלמחוק בכל זאת?`
+        );
+        if (!proceed) return;
+      }
+
       await db.collection("teachers").doc(id).delete();
       const profSnap = await db.collection("userProfiles").where("teacherId", "==", id).get();
       for (const d of profSnap.docs) await d.ref.delete();
@@ -2324,6 +2450,8 @@ ${q}`
         .grid-table th,.grid-table td{ border:1px solid var(--line); padding:5px; text-align:center; font-size:11.5px; vertical-align:middle; }
         .grid-table th{ background:var(--pri); color:#fff; padding:7px 4px; font-weight:700; }
         .th-date{ display:block; font-size:10px; opacity:.8; font-weight:500; }
+        .today-col{ background:var(--amber) !important; position:relative; }
+        .today-col::after{ content:"היום"; position:absolute; bottom:-1px; inset-inline:0; font-size:8px; font-weight:800; color:var(--pri-d); background:#fff; padding:1px 0; letter-spacing:.02em; }
         .period-label{ background:var(--paper); white-space:nowrap; }
         .period-num{ display:block; font-size:12.5px; font-weight:700; }
         .period-time{ display:block; font-size:9px; color:var(--muted); }
@@ -2444,7 +2572,7 @@ ${q}`
           padding:26px 20px; }
         .empty-state p{ margin:0; }
 
-        .toasts{ position:fixed; bottom:16px; inset-inline-start:16px; display:flex; flex-direction:column; gap:8px; z-index:60; }
+        .toasts{ position:fixed; bottom:16px; inset-inline-start:16px; display:flex; flex-direction:column; gap:8px; z-index:60; max-height:70vh; overflow-y:auto; overflow-x:hidden; }
         .toast{ background:var(--pri-d); color:#fff; padding:10px 15px; border-radius:10px; font-size:12.5px;
           display:flex; align-items:center; gap:7px; box-shadow:0 6px 18px rgba(0,0,0,.2); animation:in .22s ease; max-width:330px; }
         @keyframes in{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:none;} }
@@ -2525,12 +2653,12 @@ ${q}`
         teacher: myTeacher,
         teachers,
         requests,
-        onSubmit: createRequest,
+        onSubmit: withLock(createRequest),
         onMaterials: uploadMaterials,
-        onCancel: cancelAbsence,
-        onRespond: subRespond
+        onCancel: withLock(cancelAbsence),
+        onRespond: withLock(subRespond)
       }
-    ), role === "substitute" && myTeacher && /* @__PURE__ */ React.createElement(SubstituteView, { me: myTeacher, teachers, requests, onRespond: subRespond }), role === "management" && /* @__PURE__ */ React.createElement(
+    ), role === "substitute" && myTeacher && /* @__PURE__ */ React.createElement(SubstituteView, { me: myTeacher, teachers, requests, onRespond: withLock(subRespond) }), role === "management" && /* @__PURE__ */ React.createElement(
       ManagementView,
       {
         saveAlertEmailsUI,
@@ -2539,14 +2667,14 @@ ${q}`
         teachers,
         audit,
         canDecide: canApprove(currentUser),
-        onDecision: decide,
-        onSend: sendSubRequest,
-        onReassign: reassign,
-        onCancelSlot: cancelSlot,
+        onDecision: withLock(decide),
+        onSend: withLock(sendSubRequest),
+        onReassign: withLock(reassign),
+        onCancelSlot: withLock(cancelSlot),
         onToggleSub: toggleSub,
         onRemind: sendReminders,
-        onBroadcast: broadcastToSubs,
-        onBulkSend: sendBulkSubRequest,
+        onBroadcast: withLock(broadcastToSubs),
+        onBulkSend: withLock(sendBulkSubRequest),
         onUpdateCell: updateCell,
         onAddTeacher: addTeacher,
         onUpdateTeacher: updateTeacher,
